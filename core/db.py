@@ -11,13 +11,14 @@ from typing import Any, Iterator
 DB_PATH = Path(os.getenv("PUBMED_DB_PATH", Path(__file__).resolve().parents[1] / "pubmed.db"))
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS pubmed_records (
+CREATE TABLE IF NOT EXISTS papers (
     pmid TEXT PRIMARY KEY,
-    title TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL,
     abstract TEXT NOT NULL DEFAULT '',
     journal TEXT NOT NULL DEFAULT '',
     pub_year INTEGER,
-    authors TEXT NOT NULL DEFAULT ''
+    authors TEXT NOT NULL DEFAULT '',
+    collected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )
 """
 
@@ -38,11 +39,12 @@ def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with _connect() as connection:
         connection.execute(_SCHEMA)
+        _migrate_legacy_records(connection)
         connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_pubmed_records_year ON pubmed_records(pub_year)"
+            "CREATE INDEX IF NOT EXISTS idx_papers_year ON papers(pub_year)"
         )
         connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_pubmed_records_journal ON pubmed_records(journal)"
+            "CREATE INDEX IF NOT EXISTS idx_papers_journal ON papers(journal)"
         )
 
 
@@ -55,7 +57,7 @@ def upsert_papers(papers: list[dict]) -> tuple[int, int]:
             normalized = _normalize_paper(paper)
             cursor = connection.execute(
                 """
-                INSERT OR IGNORE INTO pubmed_records
+                INSERT OR IGNORE INTO papers
                     (pmid, title, abstract, journal, pub_year, authors)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
@@ -109,7 +111,7 @@ def search_papers(
     params.append(limit)
     query = (
         "SELECT pmid, title, abstract, journal, pub_year, authors "
-        f"FROM pubmed_records{where} "
+        f"FROM papers{where} "
         "ORDER BY pub_year DESC, CAST(pmid AS INTEGER) DESC LIMIT ?"
     )
     with _connect() as connection:
@@ -119,7 +121,7 @@ def search_papers(
 def count_papers() -> int:
     init_db()
     with _connect() as connection:
-        return int(connection.execute("SELECT COUNT(*) FROM pubmed_records").fetchone()[0])
+        return int(connection.execute("SELECT COUNT(*) FROM papers").fetchone()[0])
 
 
 def count_journals() -> int:
@@ -127,9 +129,26 @@ def count_journals() -> int:
     with _connect() as connection:
         return int(
             connection.execute(
-                "SELECT COUNT(DISTINCT journal) FROM pubmed_records WHERE journal <> ''"
+                "SELECT COUNT(DISTINCT journal) FROM papers WHERE journal <> ''"
             ).fetchone()[0]
         )
+
+
+def _migrate_legacy_records(connection: sqlite3.Connection) -> None:
+    legacy_table = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pubmed_records'"
+    ).fetchone()
+    if legacy_table is None:
+        return
+
+    # AIDEV-NOTE: Keep the legacy table intact so upgrading the shared project never discards collected papers.
+    connection.execute(
+        """
+        INSERT OR IGNORE INTO papers (pmid, title, abstract, journal, pub_year, authors)
+        SELECT pmid, title, abstract, journal, pub_year, authors
+        FROM pubmed_records
+        """
+    )
 
 
 def _normalize_paper(paper: dict) -> dict[str, Any]:

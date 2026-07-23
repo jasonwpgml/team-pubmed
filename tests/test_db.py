@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -39,6 +41,38 @@ class DatabaseTests(unittest.TestCase):
         )
         self.assertEqual([paper["pmid"] for paper in result], ["1"])
 
+    def test_init_db_uses_documented_schema(self):
+        db.init_db()
+        with closing(sqlite3.connect(db.DB_PATH)) as connection:
+            columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(papers)").fetchall()
+            }
+        self.assertEqual(
+            columns,
+            {"pmid", "title", "abstract", "journal", "pub_year", "authors", "collected_at"},
+        )
+
+    def test_init_db_migrates_legacy_records(self):
+        with closing(sqlite3.connect(db.DB_PATH)) as connection:
+            with connection:
+                connection.execute(
+                    """
+                    CREATE TABLE pubmed_records (
+                        pmid TEXT PRIMARY KEY, title TEXT, abstract TEXT,
+                        journal TEXT, pub_year INTEGER, authors TEXT
+                    )
+                    """
+                )
+                connection.execute(
+                    "INSERT INTO pubmed_records VALUES (?, ?, ?, ?, ?, ?)",
+                    ("9", "Legacy paper", "Abstract", "Legacy Journal", 2022, "Jane Doe"),
+                )
+
+        db.init_db()
+
+        self.assertEqual(db.count_papers(), 1)
+        self.assertEqual(db.search_papers()[0]["pmid"], "9")
+
     @staticmethod
     def paper(pmid, title, journal, pub_year):
         return {
@@ -53,4 +87,3 @@ class DatabaseTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
