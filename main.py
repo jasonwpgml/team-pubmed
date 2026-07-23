@@ -111,6 +111,34 @@ async def get_stats():
         raise HTTPException(status_code=500, detail="통계를 불러오지 못했습니다.") from error
 
 
+@app.get("/api/trend")
+async def get_publication_trend(
+    keyword: str,
+    year_from: int = 1900,
+    year_to: int = 2100,
+):
+    """Return PubMed's full ESearch count for each year, not the 100-paper sample."""
+    if not keyword.strip():
+        raise HTTPException(status_code=400, detail="추세 분석을 위한 검색 키워드를 입력해 주세요.")
+    if year_from > year_to:
+        raise HTTPException(status_code=400, detail="시작 연도는 종료 연도보다 클 수 없습니다.")
+
+    _analysis, _db, pubmed = _core_modules()
+    count_by_year = getattr(pubmed, "count_by_year", None)
+    if count_by_year is None:
+        raise HTTPException(
+            status_code=503,
+            detail="연도별 전체 건수 모듈을 통합하는 중입니다.",
+        )
+    try:
+        return {
+            "keyword": keyword.strip(),
+            "papers_by_year": count_by_year(keyword.strip(), year_from, year_to),
+        }
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="연도별 PubMed 건수를 불러오지 못했습니다.") from error
+
+
 @app.get("/api/papers")
 async def get_papers(
     keyword: str = "",

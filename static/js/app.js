@@ -9,9 +9,9 @@ async function request(url, options = {}) {
   return body;
 }
 
-function renderCharts(stats) {
-  const years = Object.keys(stats.papers_by_year || {});
-  const counts = Object.values(stats.papers_by_year || {});
+function renderCharts(stats, trend = null) {
+  const years = Object.keys(trend?.papers_by_year || {});
+  const counts = Object.values(trend?.papers_by_year || {});
   const journals = (stats.top_journals || []).map(([name]) => name);
   const journalCounts = (stats.top_journals || []).map(([, count]) => count);
   state.yearChart?.destroy(); state.journalChart?.destroy();
@@ -24,6 +24,20 @@ async function loadStats() {
   byId("metric-papers").textContent = stats.total_papers;
   byId("metric-journals").textContent = stats.total_journals;
   renderCharts(stats);
+}
+
+async function loadTrend(filters) {
+  const params = new URLSearchParams(filters);
+  const note = byId("trend-note");
+  note.textContent = "PubMed 전체 검색 건수를 집계하고 있어요…";
+  try {
+    const trend = await request(`/api/trend?${params}`);
+    const stats = await request("/api/stats");
+    renderCharts(stats, trend);
+    note.textContent = `‘${trend.keyword}’의 연도별 전체 검색 결과입니다. 논문 목록은 최대 100건 표본으로 표시됩니다.`;
+  } catch (error) {
+    note.textContent = error.message;
+  }
 }
 
 function renderPapers(papers) {
@@ -40,7 +54,7 @@ byId("collect-form").addEventListener("submit", async (event) => {
   const form = new FormData(event.currentTarget); const payload = Object.fromEntries(form.entries());
   ["year_from", "year_to"].forEach((key) => { payload[key] = payload[key] ? Number(payload[key]) : null; }); payload.max_count = Number(payload.max_count);
   button.disabled = true; status.textContent = "PubMed에서 논문을 수집하고 있어요…";
-  try { const result = await request("/api/collect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); byId("metric-new").textContent = result.new_count; byId("metric-skipped").textContent = result.skipped_count; status.textContent = `수집 완료 · 신규 ${result.new_count}건, 중복 ${result.skipped_count}건`; await loadStats(); }
+  try { const result = await request("/api/collect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); byId("metric-new").textContent = result.new_count; byId("metric-skipped").textContent = result.skipped_count; status.textContent = `수집 완료 · 신규 ${result.new_count}건, 중복 ${result.skipped_count}건`; await loadStats(); await loadTrend(payload); }
   catch (error) { status.textContent = error.message; } finally { button.disabled = false; }
 });
 
