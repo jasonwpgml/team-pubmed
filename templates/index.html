@@ -24,8 +24,8 @@
           </div>
           <label for="collect-max">최대 수집 건수</label>
           <select id="collect-max" name="max_count"><option value="25">25건</option><option value="50" selected>50건</option><option value="100">100건</option></select>
-          <button class="primary-button" type="submit"><span>⌁</span> 논문 수집하기</button>
-          <button id="reset-data" class="reset-button" type="button">수집 데이터 초기화</button>
+          <button class="primary-button collect-action" type="submit"><span aria-hidden="true">↻</span> 논문 수집하기</button>
+          <button id="reset-data" class="reset-button collect-action" type="button"><span aria-hidden="true">↺</span> 수집 데이터 초기화</button>
           <p id="collect-status" class="form-status" role="status"></p>
         </form>
 
