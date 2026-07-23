@@ -41,6 +41,18 @@ class DatabaseTests(unittest.TestCase):
         )
         self.assertEqual([paper["pmid"] for paper in result], ["1"])
 
+    def test_clear_papers_removes_all_collected_records(self):
+        db.upsert_papers(
+            [
+                self.paper("1", "COVID vaccine", "Journal A", 2023),
+                self.paper("2", "Cancer study", "Journal B", 2024),
+            ]
+        )
+
+        self.assertEqual(db.clear_papers(), 2)
+        self.assertEqual(db.count_papers(), 0)
+        self.assertEqual(db.clear_papers(), 0)
+
     def test_init_db_uses_documented_schema(self):
         db.init_db()
         with closing(sqlite3.connect(db.DB_PATH)) as connection:

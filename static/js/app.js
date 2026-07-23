@@ -1,4 +1,4 @@
-const state = { papers: [], searchPapers: [] };
+const state = { papers: [], metadataPapers: [], searchPapers: [] };
 
 const byId = (id) => document.getElementById(id);
 
@@ -79,9 +79,9 @@ async function loadTrend(filters) {
   }
 }
 
-function renderPapers(papers) {
+function renderPapers(papers, totalCount = papers.length) {
   state.papers = papers;
-  byId("papers-summary").textContent = `${papers.length}건의 논문을 찾았습니다.`;
+  byId("papers-summary").textContent = totalCount === papers.length ? `${papers.length}건의 수집 논문입니다.` : `${totalCount}건 중 ${papers.length}건이 검색되었습니다.`;
   if (!papers.length) { byId("papers-container").innerHTML = "<p class='result-summary'>조건에 맞는 논문이 없습니다.</p>"; return; }
   byId("papers-container").innerHTML = `<div class="paper-list">${papers.map((paper) => `<article class="paper-card"><div class="paper-card-head"><div><h3>${escapeHtml(paper.title || "제목 없음")}</h3><div class="paper-meta"><span class="meta-chip journal-chip">${escapeHtml(paper.journal || "저널 정보 없음")}</span><span class="meta-chip">${paper.pub_year || "연도 정보 없음"}</span><span class="pmid-chip">PMID ${escapeHtml(paper.pmid || "-")}</span></div></div></div><p class="paper-author"><strong>저자</strong> ${escapeHtml(paper.authors || "등록된 저자 정보가 없습니다.")}</p><p class="abstract-preview">${escapeHtml(paper.abstract || "등록된 초록이 없습니다.")}</p><details class="abstract-details"><summary>초록 전체 보기</summary><p>${escapeHtml(paper.abstract || "등록된 초록이 없습니다.")}</p></details></article>`).join("")}</div>`;
 }
@@ -96,13 +96,20 @@ function renderSearchResults(papers) {
   byId("search-container").innerHTML = `<table class="paper-table search-table"><thead><tr><th>논문 제목</th><th>저널</th><th>연도</th><th>PMID</th></tr></thead><tbody>${papers.map((paper) => `<tr><td class="paper-title">${escapeHtml(paper.title || "제목 없음")}</td><td>${escapeHtml(paper.journal || "-")}</td><td>${paper.pub_year || "-"}</td><td><span class="pmid-chip">${escapeHtml(paper.pmid || "-")}</span></td></tr>`).join("")}</tbody></table>`;
 }
 
-async function loadPapers(params = new URLSearchParams()) {
+async function loadPapers() {
   try {
     const result = await request("/api/metadata");
-    renderPapers(result.papers);
+    state.metadataPapers = result.papers;
+    applyMetadataFilter();
   } catch (error) {
     byId("papers-summary").textContent = error.message;
   }
+}
+
+function applyMetadataFilter() {
+  const query = byId("metadata-query").value.trim().toLowerCase();
+  const papers = !query ? state.metadataPapers : state.metadataPapers.filter((paper) => [paper.title, paper.abstract, paper.journal, paper.authors].some((value) => String(value || "").toLowerCase().includes(query)));
+  renderPapers(papers, state.metadataPapers.length);
 }
 
 async function searchPapers(params) {
@@ -125,7 +132,32 @@ byId("collect-form").addEventListener("submit", async (event) => {
   catch (error) { status.textContent = error.message; } finally { button.disabled = false; }
 });
 
+byId("reset-data").addEventListener("click", async () => {
+  const confirmed = window.confirm("수집된 논문 데이터를 모두 삭제할까요? 이 작업은 되돌릴 수 없습니다.");
+  if (!confirmed) return;
+  const button = byId("reset-data");
+  const status = byId("collect-status");
+  button.disabled = true;
+  try {
+    const result = await request("/api/papers/reset", { method: "POST" });
+    state.papers = [];
+    state.metadataPapers = [];
+    state.searchPapers = [];
+    byId("metric-new").textContent = "—";
+    byId("metric-skipped").textContent = "—";
+    status.textContent = `${result.removed_count}건의 수집 데이터를 초기화했습니다.`;
+    await loadStats();
+    if (byId("search").classList.contains("is-active")) renderSearchResults([]);
+    if (byId("papers").classList.contains("is-active")) await loadPapers();
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
 byId("filter-form").addEventListener("submit", async (event) => { event.preventDefault(); searchPapers(nonEmptyFormParams(event.currentTarget)); });
+byId("metadata-query").addEventListener("input", applyMetadataFilter);
 
 byId("download-csv").addEventListener("click", () => { if (!state.searchPapers.length) return; const rows = [["PMID", "Title", "Abstract", "Journal", "Year", "Authors"], ...state.searchPapers.map((paper) => [paper.pmid, paper.title, paper.abstract, paper.journal, paper.pub_year, paper.authors])]; const csv = "\uFEFF" + rows.map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); link.download = "pubmed-search-results.csv"; link.click(); URL.revokeObjectURL(link.href); });
 

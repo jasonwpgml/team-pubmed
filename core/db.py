@@ -134,6 +134,14 @@ def count_journals() -> int:
         )
 
 
+def clear_papers() -> int:
+    """Delete every collected paper and return the number of removed records."""
+    init_db()
+    with _connect() as connection:
+        removed = connection.execute("DELETE FROM papers").rowcount
+    return int(removed)
+
+
 def _migrate_legacy_records(connection: sqlite3.Connection) -> None:
     legacy_table = connection.execute(
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pubmed_records'"

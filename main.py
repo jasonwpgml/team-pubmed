@@ -170,6 +170,16 @@ async def get_collected_metadata():
         raise HTTPException(status_code=500, detail="수집된 메타데이터를 불러오지 못했습니다.") from error
 
 
+@app.post("/api/papers/reset")
+async def reset_collected_papers():
+    """Remove only locally collected SQLite records after a UI confirmation."""
+    _analysis, db, _pubmed = _core_modules()
+    try:
+        return {"removed_count": db.clear_papers()}
+    except Exception as error:
+        raise HTTPException(status_code=500, detail="수집 데이터를 초기화하지 못했습니다.") from error
+
+
 @app.post("/api/chat/stream")
 async def chat_stream(payload: ChatRequest):
     if is_medical_advice_request(payload.message):
