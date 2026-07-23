@@ -84,7 +84,9 @@ async def collect_papers(payload: CollectRequest):
         papers = pubmed.collect(
             payload.keyword, payload.year_from, payload.year_to, payload.max_count
         )
-        new_count, skipped_count = db.upsert_papers(papers)
+        new_count, skipped_count = db.upsert_papers(
+            papers, collection_keyword=payload.keyword
+        )
         return {
             "new_count": new_count,
             "skipped_count": skipped_count,

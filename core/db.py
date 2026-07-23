@@ -34,11 +34,21 @@ CREATE TABLE IF NOT EXISTS collection_trend (
 )
 """
 
+_COLLECTION_KEYWORD_SCHEMA = """
+CREATE TABLE IF NOT EXISTS paper_collection_keywords (
+    pmid TEXT NOT NULL,
+    keyword TEXT NOT NULL COLLATE NOCASE,
+    PRIMARY KEY (pmid, keyword),
+    FOREIGN KEY (pmid) REFERENCES papers(pmid) ON DELETE CASCADE
+)
+"""
+
 
 @contextmanager
 def _connect() -> Iterator[sqlite3.Connection]:
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
     try:
         with connection:
             yield connection
@@ -52,6 +62,7 @@ def init_db() -> None:
     with _connect() as connection:
         connection.execute(_SCHEMA)
         connection.execute(_TREND_SCHEMA)
+        connection.execute(_COLLECTION_KEYWORD_SCHEMA)
         _migrate_legacy_records(connection)
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_papers_year ON papers(pub_year)"
@@ -59,12 +70,19 @@ def init_db() -> None:
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_papers_journal ON papers(journal)"
         )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_collection_keywords_keyword "
+            "ON paper_collection_keywords(keyword)"
+        )
 
 
-def upsert_papers(papers: list[dict]) -> tuple[int, int]:
-    """Insert unseen PMIDs and return ``(new_count, skipped_count)``."""
+def upsert_papers(
+    papers: list[dict], collection_keyword: str = ""
+) -> tuple[int, int]:
+    """Insert unseen PMIDs, associate their collection keyword, and return counts."""
     init_db()
     inserted = 0
+    collection_keyword = collection_keyword.strip()
     with _connect() as connection:
         for paper in papers:
             normalized = _normalize_paper(paper)
@@ -84,6 +102,15 @@ def upsert_papers(papers: list[dict]) -> tuple[int, int]:
                 ),
             )
             inserted += cursor.rowcount
+            if collection_keyword:
+                # AIDEV-NOTE: Keep every PMID-to-query association; one paper may be collected by multiple searches.
+                connection.execute(
+                    """
+                    INSERT OR IGNORE INTO paper_collection_keywords (pmid, keyword)
+                    VALUES (?, ?)
+                    """,
+                    (normalized["pmid"], collection_keyword),
+                )
     return inserted, len(papers) - inserted
 
 
@@ -94,7 +121,7 @@ def search_papers(
     journal: str = "",
     limit: int = 100,
 ) -> list[dict]:
-    """Return papers matching title/abstract, year, and journal filters."""
+    """Return papers matching title, abstract, collection keyword, year, and journal."""
     if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
         raise ValueError("limit must be a positive integer")
     if year_from is not None and year_to is not None and year_from > year_to:
@@ -107,9 +134,19 @@ def search_papers(
     journal = journal.strip()
 
     if keyword:
-        conditions.append("(title LIKE ? COLLATE NOCASE OR abstract LIKE ? COLLATE NOCASE)")
+        conditions.append(
+            "("
+            "title LIKE ? COLLATE NOCASE OR "
+            "abstract LIKE ? COLLATE NOCASE OR "
+            "EXISTS ("
+            "SELECT 1 FROM paper_collection_keywords AS collected "
+            "WHERE collected.pmid = papers.pmid "
+            "AND collected.keyword LIKE ? COLLATE NOCASE"
+            ")"
+            ")"
+        )
         pattern = f"%{keyword}%"
-        params.extend((pattern, pattern))
+        params.extend((pattern, pattern, pattern))
     if year_from is not None:
         conditions.append("pub_year >= ?")
         params.append(year_from)
@@ -151,6 +188,7 @@ def clear_papers() -> int:
     """Delete every collected paper and return the number of removed records."""
     init_db()
     with _connect() as connection:
+        connection.execute("DELETE FROM paper_collection_keywords")
         removed = connection.execute("DELETE FROM papers").rowcount
         connection.execute("DELETE FROM collection_trend")
         legacy_table = connection.execute(

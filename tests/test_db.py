@@ -41,6 +41,28 @@ class DatabaseTests(unittest.TestCase):
         )
         self.assertEqual([paper["pmid"] for paper in result], ["1"])
 
+    def test_search_includes_blank_abstract_paper_collected_by_keyword(self):
+        paper = self.paper("1", "A title without the query term", "Journal A", 2023)
+        paper["abstract"] = ""
+        db.upsert_papers([paper], collection_keyword="diabetes")
+
+        self.assertEqual(
+            [result["pmid"] for result in db.search_papers(keyword="diabetes")],
+            ["1"],
+        )
+        self.assertEqual(db.search_papers(keyword="unrelated"), [])
+
+    def test_duplicate_paper_keeps_every_collection_keyword(self):
+        paper = self.paper("1", "Shared paper", "Journal A", 2023)
+        db.upsert_papers([paper], collection_keyword="diabetes")
+        self.assertEqual(
+            db.upsert_papers([paper], collection_keyword="neuropathy"),
+            (0, 1),
+        )
+
+        self.assertEqual(len(db.search_papers(keyword="diabetes")), 1)
+        self.assertEqual(len(db.search_papers(keyword="neuropathy")), 1)
+
     def test_clear_papers_removes_all_collected_records(self):
         db.upsert_papers(
             [
