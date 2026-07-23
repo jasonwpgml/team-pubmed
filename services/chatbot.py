@@ -5,11 +5,10 @@ from __future__ import annotations
 import os
 from collections.abc import AsyncIterator
 
-from langchain_core.chat_history import InMemoryChatMessageHistory
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-_histories: dict[str, InMemoryChatMessageHistory] = {}
+from services.chat_store import append_message, get_messages
 
 
 def _paper_context(papers: list[dict]) -> str:
@@ -26,11 +25,17 @@ def _paper_context(papers: list[dict]) -> str:
 async def stream_answer(
     question: str,
     papers: list[dict],
-    conversation_id: str = "default",
+    conversation_id: str,
+    user_id: str,
 ) -> AsyncIterator[str]:
     """Yield answer tokens grounded only in the retrieved paper metadata."""
+    history = get_messages(user_id, conversation_id, limit=40)
+    append_message(user_id, conversation_id, "user", question)
+
     if not os.getenv("OPENAI_API_KEY"):
-        yield "OPENAI_API_KEY가 설정되지 않았습니다. 환경 변수를 설정한 뒤 다시 시도해 주세요."
+        response = "OPENAI_API_KEY가 설정되지 않았습니다. 환경 변수를 설정한 뒤 다시 시도해 주세요."
+        append_message(user_id, conversation_id, "assistant", response)
+        yield response
         return
 
     system_prompt = (
@@ -39,13 +44,22 @@ async def stream_answer(
         "답변 마지막에 사용한 PMID를 나열하세요.\n\n"
         f"[논문 정보]\n{_paper_context(papers)}"
     )
-    history = _histories.setdefault(conversation_id, InMemoryChatMessageHistory())
-    history.add_user_message(question)
+    history_messages = [
+        HumanMessage(content=message["content"])
+        if message["role"] == "user"
+        else AIMessage(content=message["content"])
+        for message in history
+    ]
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0.2, streaming=True)
     answer_parts: list[str] = []
-    async for chunk in model.astream([SystemMessage(content=system_prompt), *history.messages]):
-        if chunk.content:
-            token = str(chunk.content)
-            answer_parts.append(token)
-            yield token
-    history.add_ai_message("".join(answer_parts))
+    try:
+        async for chunk in model.astream(
+            [SystemMessage(content=system_prompt), *history_messages, HumanMessage(content=question)]
+        ):
+            if chunk.content:
+                token = str(chunk.content)
+                answer_parts.append(token)
+                yield token
+    finally:
+        if answer_parts:
+            append_message(user_id, conversation_id, "assistant", "".join(answer_parts))

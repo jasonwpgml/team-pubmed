@@ -252,12 +252,27 @@ uvicorn main:app --reload
 - Authlib로 구현하며, Google 계정의 이메일·표시 이름만 세션에 보관한다.
 - 로그인 성공 후 메인 화면으로 이동하고, 로그아웃 기능을 제공한다.
 - 첫 버전은 별도 사용자 테이블·권한 등급을 만들지 않는다.
+- 비로그인 사용자는 교체용 빈 랜딩 템플릿만 볼 수 있으며 논문 수집·검색·통계·챗봇 API는 `401`을 반환한다.
+- Google Cloud Console의 OAuth 웹 클라이언트에 로컬 승인 리디렉션 URI로
+  `http://127.0.0.1:8000/auth/callback`을 등록한다. `localhost`로 접속하려면
+  `http://localhost:8000/auth/callback`도 별도로 등록해야 한다.
+- `.env`의 `SESSION_SECRET`은 충분히 긴 임의 문자열로 설정하고 실행할 때마다 바꾸지 않는다.
+  로그인 세션 쿠키는 30일간 유지된다.
+
+### 사용자별 채팅 기록
+
+- 사용자 메시지와 챗봇 응답은 `PUBMED_DB_PATH`가 가리키는 SQLite 파일의
+  `chat_messages` 테이블에 Google 계정 이메일과 대화 ID 기준으로 저장한다.
+- 앱을 다시 실행하거나 컴퓨터를 재부팅해도 같은 SQLite 파일을 사용하면 로그인 후 이전 대화를 자동으로 불러온다.
+- 서로 다른 Google 계정의 채팅 기록은 분리되며, 클라이언트가 임의로 사용자 이메일을 지정할 수 없다.
+- Google OAuth 토큰과 OpenAI API 키는 채팅 DB에 저장하지 않는다.
 
 ### 배포
 
 - 배포는 최종 제출 범위에 포함한다.
 - 배포 환경에서도 SQLite 파일이 유지되도록 영속 디스크(Volume)를 연결할 수 있는 Python 호스팅을 사용한다.
 - `PUBMED_DB_PATH`, `OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`은 배포 환경 변수로 설정한다.
+- 공개 HTTPS 배포 환경에서는 `HTTPS_ONLY=true`로 설정하고 `PUBMED_DB_PATH`를 영속 디스크 내부 경로로 지정한다.
 - 배포 URL을 Google OAuth 승인 리디렉션 URI에 등록하고, 실제 로그인·수집·챗봇 흐름을 점검한다.
 - Render를 사용할 경우 저장소 연결 뒤 `render.yaml`을 Blueprint로 적용하고, 생성된 URL을 OAuth 리디렉션 URI에 등록한다.
 

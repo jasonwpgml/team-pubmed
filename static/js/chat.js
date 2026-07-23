@@ -1,6 +1,8 @@
 const chatForm = document.getElementById("chat-form");
 const chatInput = document.getElementById("chat-input");
 const chatLog = document.getElementById("chat-log");
+const conversationId = "default";
+const introText = "수집한 논문을 바탕으로 무엇이 궁금한가요?";
 
 function addMessage(role, content = "") {
   const message = document.createElement("div");
@@ -12,6 +14,31 @@ function addMessage(role, content = "") {
   chatLog.appendChild(message);
   chatLog.scrollTop = chatLog.scrollHeight;
   return message.querySelector("div");
+}
+
+async function loadChatHistory() {
+  chatInput.disabled = true;
+  try {
+    const response = await fetch(`/api/chat/history?conversation_id=${encodeURIComponent(conversationId)}`);
+    if (response.status === 401) {
+      window.location.href = "/";
+      return;
+    }
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.detail || "이전 대화를 불러오지 못했습니다.");
+
+    chatLog.innerHTML = "";
+    if (!body.messages?.length) {
+      addMessage("assistant", introText).parentElement.classList.add("intro-message");
+      return;
+    }
+    body.messages.forEach((message) => addMessage(message.role, message.content));
+  } catch (error) {
+    chatLog.innerHTML = "";
+    addMessage("assistant", error.message);
+  } finally {
+    chatInput.disabled = false;
+  }
 }
 
 chatForm.addEventListener("submit", async (event) => {
@@ -30,8 +57,12 @@ chatForm.addEventListener("submit", async (event) => {
     const response = await fetch("/api/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, conversation_id: "default" }),
+      body: JSON.stringify({ message, conversation_id: conversationId }),
     });
+    if (response.status === 401) {
+      window.location.href = "/";
+      return;
+    }
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || "답변을 생성하지 못했습니다.");
@@ -68,3 +99,5 @@ chatForm.addEventListener("submit", async (event) => {
     chatInput.focus();
   }
 });
+
+loadChatHistory();
