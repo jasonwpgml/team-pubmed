@@ -69,7 +69,7 @@ async def landing_preview(request: Request):
         request,
         "index.html",
         {
-            "user": {"name": "Publium 미리보기", "email": "preview@publium.local"},
+            "user": {"name": "Publium", "email": "preview@publium.local"},
             "preview": True,
         },
     )
