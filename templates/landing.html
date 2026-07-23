@@ -44,6 +44,13 @@
             border-right: 2px solid #7768DC;
             animation: blink 0.75s step-end infinite;
         }
+        .feature-card-icon {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .feature-card:hover .feature-card-icon {
+            background-color: #7768DC;
+            color: #FFFFFF;
+        }
         @keyframes blink {
             from, to { border-color: transparent }
             50% { border-color: #7768DC; }
@@ -1540,8 +1547,8 @@ video {
         <div class="max-w-7xl mx-auto px-6" vid="82">
             <div class="grid md:grid-cols-3 gap-8" vid="83">
                 
-                <div class="p-8 rounded-[32px] bg-soft-lavender border border-white soft-shadow group hover:-translate-y-2 transition-all duration-300" vid="84">
-                    <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center mb-6 soft-shadow text-purple-brand group-hover:bg-purple-brand group-hover:text-white transition-colors" vid="85">
+                <div class="feature-card p-8 rounded-[32px] bg-soft-lavender border border-white soft-shadow group hover:-translate-y-2 transition-all duration-300" vid="84">
+                    <div class="feature-card-icon w-14 h-14 bg-white rounded-2xl flex items-center justify-center mb-6 soft-shadow text-purple-brand" vid="85">
                         <i class="ph ph-database text-3xl" vid="86"></i>
                     </div>
                     <h3 class="text-xl font-bold mb-3" vid="87">PMID 기반 메타데이터</h3>
@@ -1550,8 +1557,8 @@ video {
                     </p>
                 </div>
                 
-                <div class="p-8 rounded-[32px] bg-soft-lavender border border-white soft-shadow group hover:-translate-y-2 transition-all duration-300" vid="89">
-                    <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center mb-6 soft-shadow text-purple-brand group-hover:bg-purple-brand group-hover:text-white transition-colors" vid="90">
+                <div class="feature-card p-8 rounded-[32px] bg-soft-lavender border border-white soft-shadow group hover:-translate-y-2 transition-all duration-300" vid="89">
+                    <div class="feature-card-icon w-14 h-14 bg-white rounded-2xl flex items-center justify-center mb-6 soft-shadow text-purple-brand" vid="90">
                         <i class="ph ph-chart-line-up text-3xl" vid="91"></i>
                     </div>
                     <h3 class="text-xl font-bold mb-3" vid="92">연도별 연구 흐름 분석</h3>
@@ -1560,8 +1567,8 @@ video {
                     </p>
                 </div>
                 
-                <div class="p-8 rounded-[32px] bg-soft-lavender border border-white soft-shadow group hover:-translate-y-2 transition-all duration-300" vid="94">
-                    <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center mb-6 soft-shadow text-purple-brand group-hover:bg-purple-brand group-hover:text-white transition-colors" vid="95">
+                <div class="feature-card p-8 rounded-[32px] bg-soft-lavender border border-white soft-shadow group hover:-translate-y-2 transition-all duration-300" vid="94">
+                    <div class="feature-card-icon w-14 h-14 bg-white rounded-2xl flex items-center justify-center mb-6 soft-shadow text-purple-brand" vid="95">
                         <i class="ph ph-sparkle text-3xl" vid="96"></i>
                     </div>
                     <h3 class="text-xl font-bold mb-3" vid="97">논문 기반 AI 탐색</h3>
