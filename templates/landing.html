@@ -126,6 +126,15 @@
             .live-app-showcase__heading h2 { margin-bottom: 7px !important; font-size: 1.55rem !important; }
             .live-app-showcase__heading p { font-size: .88rem; line-height: 1.6; }
             .live-app-showcase__frame { height: 520px !important; border-radius: 18px !important; }
+            .landing-benefits { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px !important; }
+            .landing-benefits > div { flex-direction: column; align-items: center; gap: 4px !important; min-width: 0; text-align: center; font-size: .66rem; line-height: 1.35; }
+            .landing-benefits i { flex: 0 0 auto; font-size: 1rem !important; }
+            .landing-cta { padding: 72px 0 !important; }
+            .landing-cta > div { padding-right: 20px !important; padding-left: 20px !important; }
+            .landing-cta h2 { margin-bottom: 14px !important; font-size: 2rem !important; line-height: 1.2 !important; letter-spacing: -.06em !important; }
+            .landing-cta p { margin-bottom: 26px !important; font-size: 1rem !important; line-height: 1.6 !important; }
+            .landing-cta a { padding: 15px 24px !important; border-radius: 17px !important; font-size: 1rem !important; }
+            .landing-cta a img { width: 22px !important; height: 22px !important; }
         }
         @keyframes blink {
             from, to { border-color: transparent }
@@ -1540,7 +1549,7 @@ video {
                         Google로 시작하기
                     </a>
                 </div>
-                <div class="flex items-center gap-6 text-sm text-gray-400 pt-4" vid="37">
+                <div class="landing-benefits flex items-center gap-6 text-sm text-gray-400 pt-4" vid="37">
                     <div class="flex items-center gap-2" vid="38">
                         <i class="ph ph-check-circle text-purple-brand text-lg" vid="39"></i>
                         PubMed 논문 수집
@@ -1904,7 +1913,7 @@ video {
     </section>
 
     
-    <section class="py-24 relative overflow-hidden" vid="234">
+    <section class="landing-cta py-24 relative overflow-hidden" vid="234">
         <div class="max-w-7xl mx-auto px-6 text-center relative z-10" vid="235">
             <h2 class="text-4xl md:text-5xl font-bold mb-6" vid="236">새로운 질문에서 시작해 보세요.</h2>
             <p class="text-xl text-gray-600 mb-10 max-w-2xl mx-auto" vid="237">관심 키워드부터 입력하고, PubMed 논문 탐색을 시작해 보세요.</p>
