@@ -53,6 +53,7 @@
         }
         .legacy-dashboard-preview { display: none; }
         .pub-app-showcase { display: none; }
+        .landing-status-badge { overflow: hidden; }
         .live-app-showcase { padding: 96px 24px; background: #f7f7fb; }
         .live-app-showcase__inner { max-width: 1240px; margin: 0 auto; }
         .live-app-showcase__heading { margin-bottom: 44px; text-align: center; }
@@ -105,7 +106,8 @@
             body > section:first-of-type { padding: 96px 0 56px !important; }
             body > section:first-of-type > div { gap: 36px !important; padding-right: 20px !important; padding-left: 20px !important; }
             body > section:first-of-type .space-y-8 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.35rem !important; }
-            body > section:first-of-type .inline-flex { padding: 5px 11px !important; font-size: .72rem !important; }
+            body > section:first-of-type .landing-status-badge { padding: 5px 11px 5px 16px !important; font-size: .72rem !important; }
+            .landing-status-badge > .relative { margin-right: 4px; }
             body > section:first-of-type h1 { font-size: 2.35rem !important; line-height: 1.18 !important; letter-spacing: -.065em !important; }
             body > section:first-of-type p.text-xl { font-size: 1rem !important; line-height: 1.7 !important; }
             body > section:first-of-type .aspect-square { aspect-ratio: 16 / 11 !important; padding: 18px !important; border-radius: 28px !important; }
@@ -125,7 +127,16 @@
             .live-app-showcase__heading { margin-bottom: 24px !important; }
             .live-app-showcase__heading h2 { margin-bottom: 7px !important; font-size: 1.55rem !important; }
             .live-app-showcase__heading p { font-size: .88rem; line-height: 1.6; }
-            .live-app-showcase__frame { height: 520px !important; border-radius: 18px !important; }
+            .live-app-showcase__frame { height: 585px !important; border-radius: 18px !important; }
+            .landing-benefits { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px !important; }
+            .landing-benefits > div { flex-direction: column; align-items: center; gap: 4px !important; min-width: 0; text-align: center; font-size: .66rem; line-height: 1.35; }
+            .landing-benefits i { flex: 0 0 auto; font-size: 1rem !important; }
+            .landing-cta { padding: 72px 0 !important; }
+            .landing-cta > div { padding-right: 20px !important; padding-left: 20px !important; }
+            .landing-cta h2 { margin-bottom: 14px !important; font-size: clamp(1.15rem, 5.4vw, 1.3rem) !important; line-height: 1.25 !important; letter-spacing: -.065em !important; white-space: nowrap; }
+            .landing-cta p { margin-bottom: 26px !important; font-size: 1rem !important; line-height: 1.6 !important; }
+            .landing-cta a { padding: 15px 24px !important; border-radius: 17px !important; font-size: 1rem !important; }
+            .landing-cta a img { width: 22px !important; height: 22px !important; }
         }
         @keyframes blink {
             from, to { border-color: transparent }
@@ -1520,7 +1531,7 @@ video {
     <section class="pt-40 pb-20 hero-gradient" vid="22">
         <div class="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-16 items-center" vid="23">
             <div class="space-y-8" vid="24">
-                <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-purple-100 text-purple-brand rounded-full text-sm font-semibold" vid="25">
+                <div class="landing-status-badge inline-flex items-center gap-2 px-4 py-1.5 bg-purple-100 text-purple-brand rounded-full text-sm font-semibold" vid="25">
                     <span class="relative flex h-2 w-2" vid="26">
                         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" vid="27"></span>
                         <span class="relative inline-flex rounded-full h-2 w-2 bg-purple-brand" vid="28"></span>
@@ -1540,7 +1551,7 @@ video {
                         Google로 시작하기
                     </a>
                 </div>
-                <div class="flex items-center gap-6 text-sm text-gray-400 pt-4" vid="37">
+                <div class="landing-benefits flex items-center gap-6 text-sm text-gray-400 pt-4" vid="37">
                     <div class="flex items-center gap-2" vid="38">
                         <i class="ph ph-check-circle text-purple-brand text-lg" vid="39"></i>
                         PubMed 논문 수집
@@ -1904,7 +1915,7 @@ video {
     </section>
 
     
-    <section class="py-24 relative overflow-hidden" vid="234">
+    <section class="landing-cta py-24 relative overflow-hidden" vid="234">
         <div class="max-w-7xl mx-auto px-6 text-center relative z-10" vid="235">
             <h2 class="text-4xl md:text-5xl font-bold mb-6" vid="236">새로운 질문에서 시작해 보세요.</h2>
             <p class="text-xl text-gray-600 mb-10 max-w-2xl mx-auto" vid="237">관심 키워드부터 입력하고, PubMed 논문 탐색을 시작해 보세요.</p>
