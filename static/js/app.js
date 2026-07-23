@@ -65,7 +65,16 @@ function renderPapers(papers) {
   state.papers = papers;
   byId("papers-summary").textContent = `${papers.length}건의 논문을 찾았습니다.`;
   if (!papers.length) { byId("papers-container").innerHTML = "<p class='result-summary'>조건에 맞는 논문이 없습니다.</p>"; return; }
-  byId("papers-container").innerHTML = `<table class="paper-table"><thead><tr><th>논문</th><th>저널</th><th>연도</th><th>PMID</th></tr></thead><tbody>${papers.map((paper) => `<tr><td class="paper-title">${escapeHtml(paper.title || "제목 없음")}</td><td>${escapeHtml(paper.journal || "-")}</td><td>${paper.pub_year || "-"}</td><td><span class="pmid-chip">${escapeHtml(paper.pmid || "-")}</span></td></tr>`).join("")}</tbody></table>`;
+  byId("papers-container").innerHTML = `<table class="paper-table"><thead><tr><th>논문 / 초록</th><th>저널</th><th>연도</th><th>저자</th><th>PMID</th></tr></thead><tbody>${papers.map((paper) => `<tr><td class="paper-info"><strong class="paper-title">${escapeHtml(paper.title || "제목 없음")}</strong><details class="abstract-details"><summary>초록 보기</summary><p>${escapeHtml(paper.abstract || "등록된 초록이 없습니다.")}</p></details></td><td>${escapeHtml(paper.journal || "-")}</td><td>${paper.pub_year || "-"}</td><td class="paper-authors">${escapeHtml(paper.authors || "-")}</td><td><span class="pmid-chip">${escapeHtml(paper.pmid || "-")}</span></td></tr>`).join("")}</tbody></table>`;
+}
+
+async function loadPapers(params = new URLSearchParams()) {
+  try {
+    const result = await request(`/api/papers?${params}`);
+    renderPapers(result.papers);
+  } catch (error) {
+    byId("papers-summary").textContent = error.message;
+  }
 }
 
 function escapeHtml(value) { const element = document.createElement("div"); element.textContent = value; return element.innerHTML; }
@@ -79,10 +88,10 @@ byId("collect-form").addEventListener("submit", async (event) => {
   catch (error) { status.textContent = error.message; } finally { button.disabled = false; }
 });
 
-byId("filter-form").addEventListener("submit", async (event) => { event.preventDefault(); const params = new URLSearchParams(new FormData(event.currentTarget)); try { const result = await request(`/api/papers?${params}`); renderPapers(result.papers); } catch (error) { byId("papers-summary").textContent = error.message; } });
+byId("filter-form").addEventListener("submit", async (event) => { event.preventDefault(); loadPapers(new URLSearchParams(new FormData(event.currentTarget))); });
 
 byId("download-csv").addEventListener("click", () => { if (!state.papers.length) return; const rows = [["PMID", "Title", "Abstract", "Journal", "Year", "Authors"], ...state.papers.map((paper) => [paper.pmid, paper.title, paper.abstract, paper.journal, paper.pub_year, paper.authors])]; const csv = "\uFEFF" + rows.map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); link.download = "pubmed-papers.csv"; link.click(); URL.revokeObjectURL(link.href); });
 
-document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => { document.querySelectorAll(".tab,.tab-panel").forEach((element) => element.classList.remove("is-active")); tab.classList.add("is-active"); byId(tab.dataset.tab).classList.add("is-active"); if (tab.dataset.tab === "overview") loadStats().catch(() => {}); }));
+document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => { document.querySelectorAll(".tab,.tab-panel").forEach((element) => element.classList.remove("is-active")); tab.classList.add("is-active"); byId(tab.dataset.tab).classList.add("is-active"); if (tab.dataset.tab === "overview") loadStats().catch(() => {}); if (tab.dataset.tab === "papers") loadPapers(); }));
 
 loadStats().catch(() => { byId("papers-summary").textContent = "A의 데이터 모듈 통합 후 논문을 불러옵니다."; });
