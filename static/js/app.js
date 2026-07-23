@@ -3,6 +3,11 @@ let pendingRequests = 0;
 
 const byId = (id) => document.getElementById(id);
 
+function setMobileCollectSheet(open) {
+  document.body.classList.toggle("collect-sheet-open", open);
+  byId("mobile-collect-trigger").setAttribute("aria-expanded", String(open));
+}
+
 function setAppLoading(isLoading) {
   pendingRequests = Math.max(0, pendingRequests + (isLoading ? 1 : -1));
   byId("loading-indicator").classList.toggle("is-visible", pendingRequests > 0);
@@ -48,6 +53,7 @@ function renderCharts(stats, trend = null) {
 
 function renderVerticalTrend(container, entries) {
   container.className = "trend-chart";
+  container.style.setProperty("--trend-count", Math.max(entries.length, 1));
   if (!entries.length) {
     container.innerHTML = '<div class="chart-empty"><span>✦</span><p>수집 후 연도별 검색 결과가 표시됩니다.</p></div>';
     return;
@@ -189,6 +195,9 @@ byId("reset-data").addEventListener("click", async () => {
 
 byId("filter-form").addEventListener("submit", async (event) => { event.preventDefault(); searchPapers(nonEmptyFormParams(event.currentTarget)); });
 byId("metadata-filter-form").addEventListener("submit", (event) => { event.preventDefault(); applyMetadataFilter(); });
+byId("mobile-collect-trigger").addEventListener("click", () => setMobileCollectSheet(true));
+byId("mobile-sheet-backdrop").addEventListener("click", () => setMobileCollectSheet(false));
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") setMobileCollectSheet(false); });
 
 byId("download-csv").addEventListener("click", () => { if (!state.searchPapers.length) return; const rows = [["PMID", "Title", "Abstract", "Journal", "Year", "Authors"], ...state.searchPapers.map((paper) => [paper.pmid, paper.title, paper.abstract, paper.journal, paper.pub_year, paper.authors])]; const csv = "\uFEFF" + rows.map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); link.download = "pubmed-search-results.csv"; link.click(); URL.revokeObjectURL(link.href); });
 
