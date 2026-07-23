@@ -5,8 +5,26 @@ const byId = (id) => document.getElementById(id);
 async function request(url, options = {}) {
   const response = await fetch(url, options);
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.detail || "요청을 처리하지 못했습니다.");
+  if (!response.ok) throw new Error(formatError(body.detail));
   return body;
+}
+
+function formatError(detail) {
+  if (typeof detail === "string" && detail) return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail.map((item) => item?.msg).filter(Boolean);
+    if (messages.length) return messages.join(" · ");
+  }
+  return "요청을 처리하지 못했습니다.";
+}
+
+function nonEmptyFormParams(form) {
+  const params = new URLSearchParams();
+  for (const [key, value] of new FormData(form).entries()) {
+    const normalized = String(value).trim();
+    if (normalized) params.append(key, normalized);
+  }
+  return params;
 }
 
 function renderCharts(stats, trend = null) {
@@ -107,7 +125,7 @@ byId("collect-form").addEventListener("submit", async (event) => {
   catch (error) { status.textContent = error.message; } finally { button.disabled = false; }
 });
 
-byId("filter-form").addEventListener("submit", async (event) => { event.preventDefault(); searchPapers(new URLSearchParams(new FormData(event.currentTarget))); });
+byId("filter-form").addEventListener("submit", async (event) => { event.preventDefault(); searchPapers(nonEmptyFormParams(event.currentTarget)); });
 
 byId("download-csv").addEventListener("click", () => { if (!state.searchPapers.length) return; const rows = [["PMID", "Title", "Abstract", "Journal", "Year", "Authors"], ...state.searchPapers.map((paper) => [paper.pmid, paper.title, paper.abstract, paper.journal, paper.pub_year, paper.authors])]; const csv = "\uFEFF" + rows.map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); link.download = "pubmed-search-results.csv"; link.click(); URL.revokeObjectURL(link.href); });
 
