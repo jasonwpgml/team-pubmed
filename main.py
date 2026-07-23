@@ -100,9 +100,11 @@ async def collect_papers(payload: CollectRequest):
 async def get_stats():
     analysis, db, _pubmed = _core_modules()
     try:
-        papers = db.search_papers(limit=100)
+        total_papers = db.count_papers()
+        # AIDEV-NOTE: Overview statistics cover the full DB; only the paper list is capped at 100 rows.
+        papers = db.search_papers(limit=max(total_papers, 1))
         return {
-            "total_papers": db.count_papers(),
+            "total_papers": total_papers,
             "total_journals": db.count_journals(),
             "papers_by_year": analysis.papers_by_year(papers),
             "top_journals": analysis.top_journals(papers),
