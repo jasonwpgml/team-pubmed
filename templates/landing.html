@@ -96,6 +96,37 @@
         .pub-app__paper { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f0eef4; }.pub-app__paper:last-child { border: 0; }.pub-app__paper-icon { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 9px; background: #eeeaff; color: #7768dc; }.pub-app__paper div { min-width: 0; flex: 1; }.pub-app__paper b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #3e394a; font-size: 11px; }.pub-app__paper small { color: #938d9d; font-size: 9px; }
         .pub-app__ai { margin-top: 13px; padding: 15px; border-radius: 15px; background: linear-gradient(135deg, #7464d9, #aa9cf0); color: #fff; }.pub-app__ai p { margin: 0 0 8px; font-size: 11px; font-weight: 800; }.pub-app__ai div { padding: 10px; border-radius: 10px; background: #ffffff; color: #56506c; font-size: 10px; line-height: 1.55; }
         @media (max-width: 760px) { .live-app-showcase { padding: 70px 16px; }.live-app-showcase__frame { height: 620px; border-radius: 22px; }.pub-app__body { grid-template-columns: 1fr; }.pub-app__sidebar { display: none; }.pub-app__main { padding: 17px; }.pub-app__metrics { grid-template-columns: 1fr 1fr; }.pub-app__grid { grid-template-columns: 1fr; }.pub-app__metric:last-child { display: none; }.pub-app__tabs { overflow: hidden; }.pub-app__tabs span { padding: 9px 8px; font-size: 10px; white-space: nowrap; } }
+        /* Landing only: keep the first mobile view compact without changing the app UI. */
+        @media (max-width: 480px) {
+            nav > div { height: 64px !important; padding-right: 20px !important; padding-left: 20px !important; }
+            nav .w-10 { width: 32px !important; height: 32px !important; border-radius: 10px !important; }
+            nav .text-2xl { font-size: 1.25rem !important; }
+            nav a[href="/auth/login"] { padding: 8px 12px !important; font-size: .78rem !important; }
+            body > section:first-of-type { padding: 96px 0 56px !important; }
+            body > section:first-of-type > div { gap: 36px !important; padding-right: 20px !important; padding-left: 20px !important; }
+            body > section:first-of-type .space-y-8 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.35rem !important; }
+            body > section:first-of-type .inline-flex { padding: 5px 11px !important; font-size: .72rem !important; }
+            body > section:first-of-type h1 { font-size: 2.35rem !important; line-height: 1.18 !important; letter-spacing: -.065em !important; }
+            body > section:first-of-type p.text-xl { font-size: 1rem !important; line-height: 1.7 !important; }
+            body > section:first-of-type .aspect-square { aspect-ratio: 16 / 11 !important; padding: 18px !important; border-radius: 28px !important; }
+            body > section:first-of-type .aspect-square .p-6 { padding: 16px !important; }
+            body > section:first-of-type .aspect-square .gap-4 { gap: 10px !important; }
+            body > section:first-of-type .aspect-square .h-20 { height: 48px !important; }
+            body > section:first-of-type .pt-4 { padding-top: 0 !important; }
+            body > section:nth-of-type(2) { padding: 64px 0 !important; }
+            body > section:nth-of-type(2) > div { padding-right: 20px !important; padding-left: 20px !important; }
+            body > section:nth-of-type(2) .gap-8 { gap: 14px !important; }
+            body > section:nth-of-type(2) .feature-card { padding: 22px !important; border-radius: 24px !important; }
+            body > section:nth-of-type(2) .feature-card-icon { width: 46px !important; height: 46px !important; margin-bottom: 15px !important; border-radius: 15px !important; }
+            body > section:nth-of-type(2) .feature-card-icon i { font-size: 1.45rem !important; }
+            body > section:nth-of-type(2) h3 { margin-bottom: 7px !important; font-size: 1.08rem !important; }
+            body > section:nth-of-type(2) p { font-size: .9rem !important; line-height: 1.65 !important; }
+            .live-app-showcase { padding: 58px 16px !important; }
+            .live-app-showcase__heading { margin-bottom: 24px !important; }
+            .live-app-showcase__heading h2 { margin-bottom: 7px !important; font-size: 1.55rem !important; }
+            .live-app-showcase__heading p { font-size: .88rem; line-height: 1.6; }
+            .live-app-showcase__frame { height: 520px !important; border-radius: 18px !important; }
+        }
         @keyframes blink {
             from, to { border-color: transparent }
             50% { border-color: #7768DC; }
@@ -1769,7 +1800,7 @@ video {
                 <p>현재 Publium 서비스 화면을 그대로 보여드립니다.</p>
             </div>
             <div class="live-app-showcase__frame">
-                <iframe src="/landing/preview" title="Publium 서비스 화면 미리보기" loading="lazy" tabindex="-1"></iframe>
+                <iframe src="/landing/preview" title="Publium 서비스 화면 미리보기" loading="eager" tabindex="-1"></iframe>
             </div>
         </div>
     </section>
