@@ -1,4 +1,4 @@
-const state = { papers: [], yearChart: null, journalChart: null };
+const state = { papers: [] };
 
 const byId = (id) => document.getElementById(id);
 
@@ -10,13 +10,20 @@ async function request(url, options = {}) {
 }
 
 function renderCharts(stats, trend = null) {
-  const years = Object.keys(trend?.papers_by_year || {});
-  const counts = Object.values(trend?.papers_by_year || {});
-  const journals = (stats.top_journals || []).map(([name]) => name);
-  const journalCounts = (stats.top_journals || []).map(([, count]) => count);
-  state.yearChart?.destroy(); state.journalChart?.destroy();
-  state.yearChart = new Chart(byId("year-chart"), { type: "bar", data: { labels: years, datasets: [{ data: counts, backgroundColor: "#a99ff2", borderRadius: 9, borderSkipped: false }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: "rgba(89,75,132,.08)" } }, x: { grid: { display: false } } } } });
-  state.journalChart = new Chart(byId("journal-chart"), { type: "bar", data: { labels: journals, datasets: [{ data: journalCounts, backgroundColor: "#79d7c5", borderRadius: 9, borderSkipped: false }] }, options: { indexAxis: "y", plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: "rgba(89,75,132,.08)" } }, y: { grid: { display: false } } } } });
+  renderBarChart(byId("year-chart"), Object.entries(trend?.papers_by_year || {}), "purple", "수집 후 연도별 검색 결과가 표시됩니다.");
+  renderBarChart(byId("journal-chart"), stats.top_journals || [], "mint", "저장된 논문이 없으면 주요 저널이 표시되지 않습니다.");
+}
+
+function renderBarChart(container, entries, tone, emptyMessage) {
+  if (!entries.length) {
+    container.innerHTML = `<div class="chart-empty"><span>✦</span><p>${emptyMessage}</p></div>`;
+    return;
+  }
+  const maxValue = Math.max(...entries.map(([, value]) => Number(value)));
+  container.innerHTML = entries.map(([label, value]) => {
+    const width = Math.max(5, Math.round((Number(value) / maxValue) * 100));
+    return `<div class="bar-row"><div class="bar-label" title="${escapeHtml(label)}">${escapeHtml(label)}</div><div class="bar-track"><span class="bar-fill ${tone}" style="width:${width}%"></span></div><strong>${Number(value).toLocaleString()}</strong></div>`;
+  }).join("");
 }
 
 async function loadStats() {
