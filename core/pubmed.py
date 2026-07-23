@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from typing import Any
 from xml.etree import ElementTree
 
@@ -13,6 +14,7 @@ ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 MAX_PAPERS = 100
 REQUEST_TIMEOUT = 30
+REQUEST_INTERVAL_WITHOUT_KEY = 0.34
 
 
 def collect(keyword: str, year_from: int, year_to: int, max_count: int) -> list[dict]:
@@ -52,7 +54,47 @@ def collect(keyword: str, year_from: int, year_to: int, max_count: int) -> list[
     return _parse_articles(fetch_response.content)
 
 
+def count_by_year(keyword: str, year_from: int, year_to: int) -> dict[int, int]:
+    """Return the complete PubMed result count for each requested year."""
+    keyword = keyword.strip()
+    _validate_keyword_and_years(keyword, year_from, year_to)
+
+    common_params = _ncbi_identity_params()
+    counts: dict[int, int] = {}
+    for index, year in enumerate(range(year_from, year_to + 1)):
+        # AIDEV-NOTE: Without an API key NCBI permits 3 requests/second; keep yearly queries below that rate.
+        if index and "api_key" not in common_params:
+            time.sleep(REQUEST_INTERVAL_WITHOUT_KEY)
+
+        response = requests.get(
+            ESEARCH_URL,
+            params={
+                "db": "pubmed",
+                "term": f"{keyword} AND {year}:{year}[pdat]",
+                "retmax": 0,
+                "retmode": "json",
+                **common_params,
+            },
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        raw_count = response.json().get("esearchresult", {}).get("count", 0)
+        try:
+            counts[year] = int(raw_count)
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"PubMed returned an invalid count for {year}: {raw_count!r}") from error
+    return counts
+
+
 def _validate_search(keyword: str, year_from: int, year_to: int, max_count: int) -> None:
+    _validate_keyword_and_years(keyword, year_from, year_to)
+    if isinstance(max_count, bool) or not isinstance(max_count, int):
+        raise ValueError("max_count must be an integer")
+    if not 1 <= max_count <= MAX_PAPERS:
+        raise ValueError(f"max_count must be between 1 and {MAX_PAPERS}")
+
+
+def _validate_keyword_and_years(keyword: str, year_from: int, year_to: int) -> None:
     if not keyword:
         raise ValueError("keyword must not be empty")
     if isinstance(year_from, bool) or not isinstance(year_from, int):
@@ -61,10 +103,6 @@ def _validate_search(keyword: str, year_from: int, year_to: int, max_count: int)
         raise ValueError("year_to must be an integer")
     if year_from > year_to:
         raise ValueError("year_from must be less than or equal to year_to")
-    if isinstance(max_count, bool) or not isinstance(max_count, int):
-        raise ValueError("max_count must be an integer")
-    if not 1 <= max_count <= MAX_PAPERS:
-        raise ValueError(f"max_count must be between 1 and {MAX_PAPERS}")
 
 
 def _ncbi_identity_params() -> dict[str, str]:
@@ -120,6 +158,11 @@ def _text(element: ElementTree.Element | None) -> str:
 
 
 def _publication_year(article: ElementTree.Element) -> int | None:
+    # AIDEV-NOTE: [pdat] may match the electronic date while the journal issue belongs to the next year.
+    article_date_year = _text(article.find("./ArticleDate/Year"))
+    if article_date_year.isdigit():
+        return int(article_date_year)
+
     pub_date = article.find("./Journal/JournalIssue/PubDate")
     if pub_date is not None:
         year = _text(pub_date.find("Year"))
@@ -131,8 +174,7 @@ def _publication_year(article: ElementTree.Element) -> int | None:
         if match:
             return int(match.group())
 
-    article_date_year = _text(article.find("./ArticleDate/Year"))
-    return int(article_date_year) if article_date_year.isdigit() else None
+    return None
 
 
 def _authors(article: ElementTree.Element) -> str:
@@ -149,4 +191,3 @@ def _authors(article: ElementTree.Element) -> str:
         if name:
             names.append(name)
     return ", ".join(names)
-
