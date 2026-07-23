@@ -11,6 +11,7 @@
             font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
             background-color: #F9F9FF;
             color: #1A1A1A;
+            word-break: keep-all;
         }
         .bg-soft-lavender { background-color: #F4F5FF; }
         .text-purple-brand { color: #7768DC; }
@@ -1576,24 +1577,27 @@ video {
     <section class="py-24 bg-gray-50 overflow-hidden" vid="99">
         <div class="max-w-7xl mx-auto px-6" vid="100">
             <div class="text-center mb-16" vid="101">
-                <h2 class="text-3xl md:text-4xl font-bold mb-4" vid="102">강력한 리서치 대시보드</h2>
-                <p class="text-gray-500" vid="103">복잡한 논문 데이터를 시각화하고 AI와 대화하며 인사이트를 얻으세요.</p>
+                <h2 class="text-3xl md:text-4xl font-bold mb-4" vid="102">탐색부터 분석까지, 하나의 화면에서</h2>
+                <p class="text-gray-500" vid="103">Publium의 실제 흐름처럼 논문 수집·연구 분석·AI 탐색을 이어 보세요.</p>
             </div>
 
             <div class="bg-white rounded-[40px] border border-gray-200 soft-shadow p-4 lg:p-8 relative" vid="104">
+                <div class="grid lg:grid-cols-[220px_1fr] gap-6">
+                    <aside class="hidden lg:block bg-soft-lavender rounded-3xl p-5">
+                        <div class="flex items-center gap-2 mb-8 text-purple-brand font-bold"><i class="ph-fill ph-article-ny-times text-xl"></i> Publium</div>
+                        <p class="text-xs font-bold text-gray-700 mb-2">검색 키워드</p>
+                        <div class="bg-white rounded-xl px-3 py-2.5 text-sm text-gray-700 mb-4">obesity</div>
+                        <div class="grid grid-cols-2 gap-2 mb-4"><div><p class="text-[10px] text-gray-500 mb-1">시작 연도</p><div class="bg-white rounded-xl px-2 py-2 text-xs">2020</div></div><div><p class="text-[10px] text-gray-500 mb-1">종료 연도</p><div class="bg-white rounded-xl px-2 py-2 text-xs">2025</div></div></div>
+                        <p class="text-xs font-bold text-gray-700 mb-2">최대 수집 건수</p>
+                        <div class="bg-white rounded-xl px-3 py-2.5 text-sm text-gray-700 mb-3">100건</div>
+                        <div class="rounded-xl bg-purple-brand py-3 text-center text-sm font-bold text-white">논문 수집하기</div>
+                    </aside>
+                    <div>
                 
-                <div class="flex flex-col md:flex-row gap-4 mb-8" vid="105">
-                    <div class="flex-1 relative" vid="106">
-                        <i class="ph ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" vid="107"></i>
-                        <input type="text" placeholder="검색 키워드 입력 (예: obesity, immunotherapy...)" class="w-full pl-12 pr-4 py-3 bg-gray-100 border-none rounded-2xl focus:ring-2 focus:ring-purple-brand/20 transition-all outline-none" value="obesity treatment trends" vid="108">
-                    </div>
-                    <div class="flex gap-2" vid="109">
-                        <div class="px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-medium flex items-center gap-2" vid="110">
-                            2019 - 2024
-                            <i class="ph ph-caret-down" vid="111"></i>
-                        </div>
-                        <button class="px-6 py-3 bg-purple-brand text-white rounded-2xl font-bold" vid="112">수집 시작</button>
-                    </div>
+                <div class="flex items-center gap-3 mb-8 border-b border-gray-100 pb-3" vid="105">
+                    <span class="px-4 py-2 rounded-xl bg-purple-100 text-purple-brand text-sm font-bold">개요</span>
+                    <span class="px-4 py-2 text-sm text-gray-500 font-medium">논문 목록</span>
+                    <span class="px-4 py-2 text-sm text-gray-500 font-medium">AI 챗봇</span>
                 </div>
 
                 <div class="grid lg:grid-cols-12 gap-6" vid="113">
@@ -1601,7 +1605,7 @@ video {
                     <div class="lg:col-span-4 space-y-6" vid="114">
                         
                         <div class="bg-white border border-gray-100 rounded-3xl p-6 soft-shadow" vid="115">
-                            <h4 class="text-sm font-bold text-gray-400 uppercase mb-4 tracking-wider" vid="116">연도별 검색 결과 수</h4>
+                            <h4 class="text-sm font-bold text-gray-400 uppercase mb-4 tracking-wider" vid="116">PubMed 검색 결과 수 (연도별)</h4>
                             <div class="h-40 flex items-end gap-3 px-2" vid="117">
                                 <div class="flex-1 bg-purple-100 rounded-t-lg relative group" style="height: 45%;" vid="118">
                                     <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap" vid="119">2020: 1,240건</div>
