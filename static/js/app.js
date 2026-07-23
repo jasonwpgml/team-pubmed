@@ -10,11 +10,25 @@ async function request(url, options = {}) {
 }
 
 function renderCharts(stats, trend = null) {
-  renderBarChart(byId("year-chart"), Object.entries(trend?.papers_by_year || {}), "purple", "수집 후 연도별 검색 결과가 표시됩니다.");
+  renderVerticalTrend(byId("year-chart"), Object.entries(trend?.papers_by_year || {}));
   renderBarChart(byId("journal-chart"), stats.top_journals || [], "mint", "저장된 논문이 없으면 주요 저널이 표시되지 않습니다.");
 }
 
+function renderVerticalTrend(container, entries) {
+  container.className = "trend-chart";
+  if (!entries.length) {
+    container.innerHTML = '<div class="chart-empty"><span>✦</span><p>수집 후 연도별 검색 결과가 표시됩니다.</p></div>';
+    return;
+  }
+  const maxValue = Math.max(...entries.map(([, value]) => Number(value)));
+  container.innerHTML = entries.map(([year, value]) => {
+    const height = Math.max(5, Math.round((Number(value) / maxValue) * 100));
+    return `<div class="trend-column"><strong>${Number(value).toLocaleString()}</strong><div class="trend-track"><span style="height:${height}%"></span></div><small>${escapeHtml(year)}</small></div>`;
+  }).join("");
+}
+
 function renderBarChart(container, entries, tone, emptyMessage) {
+  container.className = "bar-chart";
   if (!entries.length) {
     container.innerHTML = `<div class="chart-empty"><span>✦</span><p>${emptyMessage}</p></div>`;
     return;
