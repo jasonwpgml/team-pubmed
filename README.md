@@ -1,294 +1,149 @@
-# PubMed 논문 분석 · AI 챗봇
+# Publium
 
-PubMed 논문을 수집·분석하고, 저장된 논문을 근거로 질문에 답하는 웹 애플리케이션입니다.
+PubMed 논문을 수집하고 연구 흐름을 분석하며, 저장된 논문을 근거로 AI와 대화할 수 있는 연구 보조 웹 애플리케이션입니다.
 
-> 이 문서는 A·B의 구현 전 인터페이스와 역할을 맞추기 위한 팀 논의 초안입니다.
+> **Live Demo:** [https://publium.onrender.com](https://publium.onrender.com/)
+>
+> Render 무료 인스턴스는 15분 동안 요청이 없으면 절전 상태가 됩니다. 첫 접속에는 수십 초가 걸릴 수 있습니다.
 
-## 확정된 방향
+![Publium 대시보드](docs/images/publium-dashboard.png)
 
-- 웹 UI는 Streamlit 대신 **HTML/CSS/Vanilla JavaScript**로 구현한다.
-- Python으로 이미 작성한 수집·DB·분석 로직을 재사용하기 위해 백엔드는 **FastAPI**로 구성한다.
-- 화면은 단일 페이지의 사이드바와 3개 탭(개요 / 논문 목록 / AI 챗봇)으로 만든다.
-- 로컬 DB는 관리하기 쉬운 **SQLite**, 무료 배포 DB는 **Supabase PostgreSQL**을 사용하며 PMID를 고유 키로 중복을 방지한다.
-- 디자인은 **Claymorphism**: 부드러운 파스텔 배경, 둥근 카드, 절제된 입체 그림자 스타일로 한다.
-- Google OAuth, 챗봇 토큰 스트리밍, 배포는 필수 요구사항 완료 뒤 진행하는 도전 과제로 둔다.
+## 주요 기능
+
+- **PubMed 논문 수집** — 키워드, 연도 범위, 최대 수집 건수를 지정해 논문 메타데이터를 가져옵니다.
+- **중복 방지** — PMID를 기준으로 동일한 논문이 중복 저장되지 않도록 처리합니다.
+- **연구 동향 분석** — 연도별 PubMed 검색 건수와 수집 논문의 상위 저널을 시각화합니다.
+- **논문 목록 검색** — 제목, 초록, 수집 키워드, 연도, 저널 조건으로 논문을 찾을 수 있습니다.
+- **초록 확인 및 CSV 다운로드** — 초록이 없는 논문도 목록에 유지하며, 현재 검색 결과를 CSV로 내려받을 수 있습니다.
+- **논문 기반 AI 챗봇** — 저장된 논문을 근거로 답변하고 관련 PMID를 함께 제시합니다.
+- **Google OAuth** — 로그인한 사용자별로 채팅 기록을 분리해 저장합니다.
 
 ## 기술 스택
 
-| 영역 | 선택 | 용도 |
-| --- | --- | --- |
-| Backend | FastAPI + Uvicorn | Python `core` 모듈 연결, JSON API, SSE 스트리밍 |
-| Frontend | HTML + CSS + Vanilla JS | 화면과 상호작용을 자유롭게 구현 |
-| Template | Jinja2 | 초기 HTML 페이지 제공 |
-| Database | SQLite(local) + Supabase PostgreSQL(deploy) | 논문·채팅 데이터 영속화 및 PMID 중복 방지 |
-| PubMed API | `requests` + XML 파서 | ESearch 및 EFetch 호출 |
-| AI | LangChain + OpenAI | 논문 근거 기반 챗봇 및 세션별 대화 이력 |
-| Auth (선택) | Authlib + Google OAuth | Google 로그인 |
-| Chart | Chart.js | 연도별·저널별 차트 |
+| 영역 | 기술 |
+| --- | --- |
+| Backend | Python, FastAPI, Uvicorn |
+| Frontend | Jinja2, HTML, CSS, Vanilla JavaScript |
+| Database | SQLite(로컬), Supabase PostgreSQL(배포) |
+| External API | NCBI PubMed ESearch / EFetch |
+| AI | LangChain, OpenAI |
+| Authentication | Authlib, Google OAuth 2.0 |
+| Deployment | Render Web Service, Supabase |
 
-## 제안 폴더 구조
+## 서비스 구조
+
+```text
+Browser
+  └─ Render · FastAPI
+       ├─ PubMed API
+       ├─ OpenAI API
+       ├─ Google OAuth
+       └─ Supabase PostgreSQL
+```
 
 ```text
 team-pubmed/
-├── main.py                 # FastAPI 앱, 페이지/API 라우트 (B)
-├── core/                   # 데이터 파이프라인 (A)
-│   ├── pubmed.py           # ESearch + EFetch 수집
-│   ├── db.py               # SQLite/PostgreSQL 저장·검색·통계
-│   └── analysis.py         # 연도별/저널별 분석
-├── services/               # AI 서비스 (B)
-│   ├── chatbot.py          # LangChain 체인, 대화 이력, 스트리밍
-│   └── guard.py            # 의료 조언 차단 정책
-├── templates/
-│   └── index.html          # 단일 페이지 레이아웃 (B)
-├── static/
-│   ├── css/style.css       # Claymorphism 디자인 (B)
-│   └── js/
-│       ├── app.js          # 수집·통계·목록 렌더링 (B)
-│       └── chat.js         # 챗봇 SSE 수신/렌더링 (B)
-├── auth.py                 # Google OAuth 도전 과제 (B)
-├── requirements.txt
-├── .env.example
-└── README.md
+├─ core/
+│  ├─ analysis.py          # 연도별·저널별 통계
+│  ├─ database.py          # SQLite/PostgreSQL 연결
+│  ├─ db.py                # 논문 저장·검색
+│  └─ pubmed.py            # PubMed 수집
+├─ services/
+│  ├─ chatbot.py           # 논문 기반 AI 답변
+│  ├─ chat_store.py        # 사용자별 채팅 기록
+│  └─ guard.py             # 의료 조언 요청 차단
+├─ static/                 # CSS, JavaScript
+├─ templates/              # 랜딩·대시보드 템플릿
+├─ tests/                  # 단위·통합 테스트
+├─ auth.py                 # Google OAuth
+├─ main.py                 # FastAPI 앱과 API
+└─ render.yaml             # Render Blueprint
 ```
 
-## 역할 분담
+## 로컬 실행
 
-| 담당 | 범위 |
-| --- | --- |
-| A — 데이터/백엔드 코어 | `core/pubmed.py`, `core/db.py`, `core/analysis.py` 구현 및 테스트 |
-| B — 웹/AI | `main.py`, `services/`, `templates/`, `static/`, OAuth, 화면·챗봇 통합 |
-| 공동 | 함수/API 계약 확정, 통합 테스트, README·시연 자료 작성 |
+### Git Bash
 
-## Core 함수 계약 (A 구현)
-
-```python
-# core/pubmed.py
-def collect(keyword: str, year_from: int, year_to: int, max_count: int) -> list[dict]: ...
-
-# 반환되는 논문 데이터 형식
-# {
-#   "pmid": str,
-#   "title": str,
-#   "abstract": str,
-#   "journal": str,
-#   "pub_year": int | None,
-#   "authors": str,
-# }
-
-# core/db.py
-def init_db() -> None: ...
-def upsert_papers(
-    papers: list[dict],
-    collection_keyword: str = "",
-) -> tuple[int, int]: ...  # (신규 수, 스킵 수)
-def search_papers(
-    keyword: str = "",
-    year_from: int | None = None,
-    year_to: int | None = None,
-    journal: str = "",
-    limit: int = 100,
-) -> list[dict]: ...
-def count_papers() -> int: ...
-def count_journals() -> int: ...
-
-# core/analysis.py
-def papers_by_year(papers: list[dict]) -> dict[int, int]: ...
-def top_journals(papers: list[dict], n: int = 10) -> list[tuple[str, int]]: ...
-```
-
-### SQLite/PostgreSQL 스키마 및 검색 규칙 — 확정
-
-```sql
-CREATE TABLE IF NOT EXISTS papers (
-  pmid         TEXT PRIMARY KEY,
-  title        TEXT NOT NULL,
-  abstract     TEXT NOT NULL DEFAULT '',
-  journal      TEXT NOT NULL DEFAULT '',
-  pub_year     INTEGER,
-  authors      TEXT NOT NULL DEFAULT '',
-  collected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_papers_year ON papers(pub_year);
-CREATE INDEX IF NOT EXISTS idx_papers_journal ON papers(journal);
-```
-
-- `pmid`를 기준으로 중복은 저장하지 않고 스킵 수에 포함한다.
-- `keyword`는 제목 또는 초록에서 대소문자 구분 없이 검색한다.
-- 연도 범위는 양 끝값을 포함한다. 빈 값은 해당 조건을 적용하지 않는다.
-- `journal`은 UI에서 선택한 저널명과 정확히 일치하는 결과만 반환한다.
-- 최신 연도·PMID 순으로 최대 100건을 반환한다. 페이지네이션은 첫 버전 범위에서 제외한다.
-
-## B가 제공할 API 초안
-
-| Method | Endpoint | 요청 / 응답 요약 |
-| --- | --- | --- |
-| `POST` | `/api/collect` | 수집 조건 입력 → 신규/스킵/전체 수 반환 |
-| `GET` | `/api/stats` | 논문 수, 저널 수, 연도별 수, 상위 저널 반환 |
-| `GET` | `/api/papers` | 키워드·연도·저널 필터를 적용한 논문 목록 반환 |
-| `POST` | `/api/chat/stream` | 메시지와 대화 ID 입력 → SSE 토큰 스트림 반환 |
-
-`/api/collect` 요청 예시:
-
-```json
-{
-  "keyword": "diabetes",
-  "year_from": 2020,
-  "year_to": 2025,
-  "max_count": 100
-}
-```
-
-### 응답 및 오류 형식 — 확정
-
-논문 목록은 아래처럼 결과 배열과 전체 수를 함께 반환한다.
-
-```json
-{
-  "papers": [{
-    "pmid": "12345678",
-    "title": "Paper title",
-    "abstract": "Abstract text",
-    "journal": "Journal name",
-    "pub_year": 2025,
-    "authors": "Kim H, Lee J"
-  }],
-  "total": 1
-}
-```
-
-오류는 FastAPI 기본 형식을 통일해 사용한다.
-
-```json
-{ "detail": "사용자에게 보여 줄 오류 메시지" }
-```
-
-- 잘못된 입력: `400`
-- 로그인되지 않은 사용자: `401`
-- PubMed/OpenAI 등 외부 서비스 호출 실패: `502`
-- 예상하지 못한 서버 오류: `500`
-
-## 화면 구성
-
-```text
-사이드바
-└─ 키워드 / 시작·종료 연도 / 최대 수집 건수 / 수집 버튼
-
-탭 1. 개요
-├─ 논문 수 · 신규 수 · 스킵 수 · 저널 수 지표 카드
-├─ 연도별 논문 수 차트
-└─ 상위 저널 차트
-
-탭 2. 논문 목록
-├─ 키워드 · 연도 · 저널 필터
-├─ 논문 목록 테이블 (모바일에서는 카드형 전환)
-└─ 현재 필터 결과 CSV 다운로드
-
-탭 3. AI 챗봇
-├─ 대화 메시지
-├─ 응답 토큰 스트리밍
-└─ 답변 근거 PMID 칩/링크
-```
-
-논문 목록은 데스크톱(`768px` 초과)에서 필터 가능한 테이블로, 모바일에서는 제목·저널·연도·PMID만 우선 보이는 카드 목록으로 전환한다. CSV 다운로드는 현재 필터 결과 전체를 대상으로 한다.
-
-## 챗봇 동작 원칙
-
-```text
-사용자 질문
-  → 의료 조언/진단/처방 요청인지 guard.py에서 먼저 검사
-  → 차단 대상이면 고정 안내 문구 반환
-  → 아니라면 SQLite에서 관련 논문 검색
-  → 제목·초록 일부를 LangChain 컨텍스트로 전달
-  → LangChain 세션별 대화 이력을 반영해 OpenAI 응답을 스트리밍하고 PMID 근거를 함께 표시
-```
-
-- 챗봇은 의료 진단이나 처방을 제공하지 않고, 저장된 PubMed 논문 정보만 요약한다.
-- API 키는 `.env`의 `OPENAI_API_KEY`로 관리하며 커밋하지 않는다.
-
-### 의료 조언 차단 규칙 — 확정
-
-- 사용자가 개인의 증상에 대한 진단, 치료법, 처방, 복용량, 약 변경을 요구하면 체인을 호출하지 않고 차단한다.
-- 논문 요약, 질환 연구 동향, 키워드 기반 논문 탐색은 허용한다.
-- 차단 문구: `의료적 진단·처방·복용 방법은 안내할 수 없습니다. 의료 전문가와 상담해 주세요. 대신 PubMed 논문 검색과 연구 정보 요약은 도와드릴 수 있습니다.`
-
-## 디자인 가이드 — Claymorphism
-
-| 요소 | 방향 |
-| --- | --- |
-| 배경 | 아주 연한 라벤더에서 민트로 이어지는 그라데이션 |
-| 카드 | 크림 화이트, 24px 내외 라운드, 부드러운 그림자 |
-| 주요색 | Purple `#7C6EE6` |
-| 보조색 | Mint `#79D7C5` |
-| 강조색 | Peach `#FFB49A` |
-| 본문 텍스트 | Deep navy `#2C2B3D` |
-| 상호작용 | 버튼 hover 시 살짝 떠오르고 클릭 시 눌리는 효과 |
-
-가독성을 위해 과도한 투명도·블러는 피하고, 입체 효과는 카드와 주요 버튼에만 사용한다.
-
-## 구현 순서
-
-1. A와 함수 계약 및 SQLite 스키마를 확정한다.
-2. B는 더미 데이터로 `index.html`, `style.css`, `app.js` 화면을 먼저 만든다.
-3. A의 `core` 모듈을 B의 `main.py` API에 연결한다.
-4. 통계·목록·CSV 기능을 통합 테스트한다.
-5. 챗봇과 의료 조언 차단을 연결한다.
-6. 필수 요구사항을 검증한 뒤 OAuth, SSE 고도화, 배포를 진행한다.
-
-## 로컬 실행 (B 브랜치)
-
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
+```bash
+python -m venv .venv
+source .venv/Scripts/activate
 python -m pip install -r requirements.txt
-Copy-Item .env.example .env
+cp .env.example .env
 uvicorn main:app --reload
 ```
 
-`.env`에 OpenAI 및 Google OAuth 값을 입력한 뒤 `http://127.0.0.1:8000`으로 접속한다.
+브라우저에서 [http://127.0.0.1:8000](http://127.0.0.1:8000)으로 접속합니다.
 
-## 도전 과제 범위 — 확정
+서버를 종료하려면 실행 중인 터미널에서 `Ctrl + C`를 누릅니다.
 
-### Google OAuth
+## 환경 변수
 
-- Google 로그인은 최종 제출 범위에 포함한다.
-- Authlib로 구현하며, Google 계정의 이메일·표시 이름만 세션에 보관한다.
-- 로그인 성공 후 메인 화면으로 이동하고, 로그아웃 기능을 제공한다.
-- 첫 버전은 별도 사용자 테이블·권한 등급을 만들지 않는다.
-- 비로그인 사용자는 랜딩 페이지까지만 볼 수 있으며 논문 수집·검색·통계·챗봇 API는 `401`을 반환한다.
-- Google Cloud Console의 OAuth 웹 클라이언트에 로컬 승인 리디렉션 URI로
-  `http://127.0.0.1:8000/auth/callback`을 등록한다. `localhost`로 접속하려면
-  `http://localhost:8000/auth/callback`도 별도로 등록해야 한다.
-- `.env`의 `SESSION_SECRET`은 충분히 긴 임의 문자열로 설정하고 실행할 때마다 바꾸지 않는다.
-  로그인 세션 쿠키는 30일간 유지된다.
+`.env.example`을 `.env`로 복사한 다음 필요한 값을 설정합니다.
 
-### 사용자별 채팅 기록
+| 변수 | 필수 여부 | 설명 |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | AI 기능 사용 시 필수 | OpenAI API 키 |
+| `GOOGLE_CLIENT_ID` | 로그인 사용 시 필수 | Google OAuth 클라이언트 ID |
+| `GOOGLE_CLIENT_SECRET` | 로그인 사용 시 필수 | Google OAuth 클라이언트 보안 비밀 |
+| `SESSION_SECRET` | 필수 | 세션 쿠키 서명용 임의 문자열 |
+| `DATABASE_URL` | 배포 시 필수 | Supabase Session Pooler 연결 문자열 |
+| `PUBMED_DB_PATH` | 선택 | 로컬 SQLite 파일 경로, 기본값 `pubmed.db` |
+| `NCBI_API_KEY` | 선택 | PubMed 요청 한도 향상용 API 키 |
+| `NCBI_EMAIL` | 선택 | NCBI 요청 식별용 이메일 |
+| `HTTPS_ONLY` | 배포 시 권장 | HTTPS 환경에서는 `true` |
 
-- 사용자 메시지와 챗봇 응답은 로컬에서는 `PUBMED_DB_PATH`의 SQLite 파일에,
-  배포 환경에서는 `DATABASE_URL`의 Supabase PostgreSQL `chat_messages` 테이블에 저장한다.
-- 앱을 다시 실행해도 같은 DB를 사용하면 로그인 후 이전 대화를 자동으로 불러온다.
-- 서로 다른 Google 계정의 채팅 기록은 분리되며, 클라이언트가 임의로 사용자 이메일을 지정할 수 없다.
-- Google OAuth 토큰과 OpenAI API 키는 채팅 DB에 저장하지 않는다.
+`.env` 파일과 모든 비밀키는 Git에 커밋하지 않습니다.
 
-### 배포
+## Google OAuth 설정
 
-- 배포는 최종 제출 범위에 포함한다.
-- Render 무료 Web Service와 Supabase 무료 PostgreSQL을 사용한다.
-- Supabase Dashboard의 Connect 메뉴에서 Session Pooler(포트 5432) 연결 문자열을 복사해
-  Render의 `DATABASE_URL` 비밀 환경변수로 설정한다.
-- `DATABASE_URL`, `OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
-  `SESSION_SECRET`은 배포 환경 변수로 설정하며 저장소에 커밋하지 않는다.
-- 공개 HTTPS 배포 환경에서는 `HTTPS_ONLY=true`로 설정한다.
-- Render 헬스체크는 인증·DB·템플릿을 거치지 않는 `GET /health`를 사용한다.
-- 동기 PubMed·DB 호출은 스레드풀에서 실행하고 PubMed 작업은 프로세스당 최대 2개로 제한해
-  단일 워커에서도 수집 중 헬스체크와 로그인 요청을 계속 처리한다.
-- 배포 URL을 Google OAuth 승인 리디렉션 URI에 등록하고, 실제 로그인·수집·챗봇 흐름을 점검한다.
-- Render를 사용할 경우 저장소 연결 뒤 `render.yaml`을 Blueprint로 적용하고, 생성된 URL을 OAuth 리디렉션 URI에 등록한다.
+Google Cloud Console의 OAuth 클라이언트에 다음 승인된 리디렉션 URI를 등록합니다.
 
-## 결정 완료
+```text
+# 로컬
+http://127.0.0.1:8000/auth/callback
 
-- [x] SQLite 테이블 컬럼과 `search_papers()`의 검색 조건 확정
-- [x] API 응답의 논문 필드 및 오류 형식 확정
-- [x] 논문 목록의 데스크톱 테이블 / 모바일 카드 전환 범위 확정
-- [x] 의료 조언 차단 문구와 조건 확정
-- [x] OAuth와 배포를 최종 제출 범위에 포함
+# 배포
+https://publium.onrender.com/auth/callback
+```
+
+`localhost`로 접속할 경우 아래 URI도 별도로 등록해야 합니다.
+
+```text
+http://localhost:8000/auth/callback
+```
+
+## API
+
+| Method | Endpoint | 설명 |
+| --- | --- | --- |
+| `GET` | `/health` | 배포 상태 확인 |
+| `POST` | `/api/collect` | PubMed 논문 수집 |
+| `GET` | `/api/stats` | 저장 논문·저널 통계 |
+| `GET` | `/api/trend` | 키워드별 연도 추세 |
+| `GET` | `/api/papers` | 조건별 논문 검색 |
+| `GET` | `/api/metadata` | 수집 논문 목록 |
+| `POST` | `/api/papers/reset` | 수집 데이터 초기화 |
+| `POST` | `/api/chat/stream` | AI 답변 SSE 스트리밍 |
+| `GET` | `/api/chat/history` | 사용자 채팅 기록 |
+
+## 테스트
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+테스트는 PubMed 응답 파싱, SQLite/PostgreSQL 연결, 논문 검색·중복 처리, 통계, OAuth 접근 제어, 사용자별 채팅 기록, 의료 조언 차단을 검증합니다.
+
+## 배포
+
+현재 운영 환경은 다음과 같이 구성되어 있습니다.
+
+- **Render 무료 Web Service** — FastAPI 애플리케이션
+- **Supabase 무료 PostgreSQL** — 논문 및 채팅 데이터
+- **Render Blueprint** — 저장소 루트의 `render.yaml`
+
+Render 환경 변수의 `DATABASE_URL`에는 Supabase의 **Session Pooler(포트 5432)** 연결 문자열을 사용합니다. 배포 후 Google OAuth 클라이언트에도 운영 리디렉션 URI를 추가해야 합니다.
+
+## 주의사항
+
+Publium은 논문 탐색과 연구 보조를 위한 서비스입니다. 의료 전문가의 진단을 대신하지 않으며, AI 답변은 반드시 원문 논문을 통해 다시 확인해야 합니다.
