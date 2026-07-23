@@ -20,8 +20,8 @@
           <label for="collect-keyword">검색 키워드</label>
           <input id="collect-keyword" name="keyword" placeholder="예: diabetes" required />
           <div class="field-row">
-            <div><label for="collect-from">시작 연도</label><input id="collect-from" name="year_from" type="number" min="1900" max="2100" placeholder="2020" /></div>
-            <div><label for="collect-to">종료 연도</label><input id="collect-to" name="year_to" type="number" min="1900" max="2100" placeholder="2025" /></div>
+            <div><label for="collect-from">시작 연도</label><input id="collect-from" name="year_from" type="number" min="1900" max="2100" value="2020" required /></div>
+            <div><label for="collect-to">종료 연도</label><input id="collect-to" name="year_to" type="number" min="1900" max="2100" value="2025" required /></div>
           </div>
           <label for="collect-max">최대 수집 건수</label>
           <select id="collect-max" name="max_count"><option value="25">25건</option><option value="50" selected>50건</option><option value="100">100건</option></select>

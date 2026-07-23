@@ -32,7 +32,7 @@ app = FastAPI(title="PubMed Insight", version="0.1.0")
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET", "local-development-secret-change-me"),
-    https_only=False,
+    https_only=os.getenv("HTTPS_ONLY", "false").lower() == "true",
     same_site="lax",
 )
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -42,8 +42,8 @@ app.include_router(auth_router)
 
 class CollectRequest(BaseModel):
     keyword: str = Field(min_length=1, max_length=120)
-    year_from: int | None = Field(default=None, ge=1900, le=2100)
-    year_to: int | None = Field(default=None, ge=1900, le=2100)
+    year_from: int = Field(ge=1900, le=2100)
+    year_to: int = Field(ge=1900, le=2100)
     max_count: int = Field(default=50, ge=1, le=100)
 
 
@@ -76,7 +76,7 @@ def _core_modules():
 
 @app.post("/api/collect")
 async def collect_papers(payload: CollectRequest):
-    if payload.year_from and payload.year_to and payload.year_from > payload.year_to:
+    if payload.year_from > payload.year_to:
         raise HTTPException(status_code=400, detail="시작 연도는 종료 연도보다 클 수 없습니다.")
 
     _analysis, db, pubmed = _core_modules()
@@ -141,7 +141,9 @@ async def chat_stream(payload: ChatRequest):
     papers = db.search_papers(keyword=payload.message, limit=5)
 
     async def events() -> AsyncIterator[str]:
-        async for chunk in stream_answer(payload.message, papers):
+        async for chunk in stream_answer(
+            payload.message, papers, payload.conversation_id or "default"
+        ):
             yield f"data: {json.dumps({'token': chunk}, ensure_ascii=False)}\n\n"
         yield "event: done\ndata: {}\n\n"
 

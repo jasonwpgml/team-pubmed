@@ -5,7 +5,11 @@ from __future__ import annotations
 import os
 from collections.abc import AsyncIterator
 
+from langchain_core.chat_history import InMemoryChatMessageHistory
+from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
+
+_histories: dict[str, InMemoryChatMessageHistory] = {}
 
 
 def _paper_context(papers: list[dict]) -> str:
@@ -19,19 +23,29 @@ def _paper_context(papers: list[dict]) -> str:
     )
 
 
-async def stream_answer(question: str, papers: list[dict]) -> AsyncIterator[str]:
+async def stream_answer(
+    question: str,
+    papers: list[dict],
+    conversation_id: str = "default",
+) -> AsyncIterator[str]:
     """Yield answer tokens grounded only in the retrieved paper metadata."""
     if not os.getenv("OPENAI_API_KEY"):
         yield "OPENAI_API_KEY가 설정되지 않았습니다. 환경 변수를 설정한 뒤 다시 시도해 주세요."
         return
 
-    prompt = (
+    system_prompt = (
         "당신은 PubMed 논문 탐색 도우미입니다. 제공된 논문 정보만 근거로 한국어로 답하세요. "
         "의료 진단·처방은 제공하지 마세요. 근거가 부족하면 부족하다고 말하고, "
         "답변 마지막에 사용한 PMID를 나열하세요.\n\n"
-        f"[논문 정보]\n{_paper_context(papers)}\n\n[사용자 질문]\n{question}"
+        f"[논문 정보]\n{_paper_context(papers)}"
     )
+    history = _histories.setdefault(conversation_id, InMemoryChatMessageHistory())
+    history.add_user_message(question)
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0.2, streaming=True)
-    async for chunk in model.astream(prompt):
+    answer_parts: list[str] = []
+    async for chunk in model.astream([SystemMessage(content=system_prompt), *history.messages]):
         if chunk.content:
-            yield str(chunk.content)
+            token = str(chunk.content)
+            answer_parts.append(token)
+            yield token
+    history.add_ai_message("".join(answer_parts))
