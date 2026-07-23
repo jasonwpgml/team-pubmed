@@ -13,7 +13,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -25,6 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
 from auth import router as auth_router
+from services.chat_store import append_message, get_messages
 from services.chatbot import stream_answer
 from services.guard import blocked_response, is_medical_advice_request
 
@@ -32,6 +33,7 @@ app = FastAPI(title="PubMed Insight", version="0.1.0")
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET", "local-development-secret-change-me"),
+    max_age=60 * 60 * 24 * 30,
     https_only=os.getenv("HTTPS_ONLY", "false").lower() == "true",
     same_site="lax",
 )
@@ -54,7 +56,17 @@ class ChatRequest(BaseModel):
 
 @app.get("/")
 async def index(request: Request):
-    return templates.TemplateResponse(request, "index.html", {"user": request.session.get("user")})
+    user = request.session.get("user")
+    if not user:
+        return templates.TemplateResponse(request, "landing.html")
+    return templates.TemplateResponse(request, "index.html", {"user": user})
+
+
+def require_user(request: Request) -> dict[str, str]:
+    user = request.session.get("user")
+    if not user or not user.get("email"):
+        raise HTTPException(status_code=401, detail="Google 로그인이 필요합니다.")
+    return user
 
 
 def _core_modules():
@@ -75,7 +87,10 @@ def _core_modules():
 
 
 @app.post("/api/collect")
-async def collect_papers(payload: CollectRequest):
+async def collect_papers(
+    payload: CollectRequest,
+    _user: dict[str, str] = Depends(require_user),
+):
     if payload.year_from > payload.year_to:
         raise HTTPException(status_code=400, detail="시작 연도는 종료 연도보다 클 수 없습니다.")
 
@@ -99,7 +114,7 @@ async def collect_papers(payload: CollectRequest):
 
 
 @app.get("/api/stats")
-async def get_stats():
+async def get_stats(_user: dict[str, str] = Depends(require_user)):
     analysis, db, _pubmed = _core_modules()
     try:
         total_papers = db.count_papers()
@@ -122,6 +137,7 @@ async def get_publication_trend(
     year_from: int = 1900,
     year_to: int = 2100,
     persist: bool = False,
+    _user: dict[str, str] = Depends(require_user),
 ):
     """Return PubMed's full ESearch count for each year, not the 100-paper sample."""
     if not keyword.strip():
@@ -154,6 +170,7 @@ async def get_papers(
     year_from: int | None = None,
     year_to: int | None = None,
     journal: str = "",
+    _user: dict[str, str] = Depends(require_user),
 ):
     if year_from and year_to and year_from > year_to:
         raise HTTPException(status_code=400, detail="시작 연도는 종료 연도보다 클 수 없습니다.")
@@ -166,7 +183,7 @@ async def get_papers(
 
 
 @app.get("/api/metadata")
-async def get_collected_metadata():
+async def get_collected_metadata(_user: dict[str, str] = Depends(require_user)):
     """Return every paper stored in SQLite for the metadata library tab."""
     _analysis, db, _pubmed = _core_modules()
     try:
@@ -178,7 +195,7 @@ async def get_collected_metadata():
 
 
 @app.post("/api/papers/reset")
-async def reset_collected_papers():
+async def reset_collected_papers(_user: dict[str, str] = Depends(require_user)):
     """Remove only locally collected SQLite records after a UI confirmation."""
     _analysis, db, _pubmed = _core_modules()
     try:
@@ -188,10 +205,20 @@ async def reset_collected_papers():
 
 
 @app.post("/api/chat/stream")
-async def chat_stream(payload: ChatRequest):
+async def chat_stream(
+    payload: ChatRequest,
+    user: dict[str, str] = Depends(require_user),
+):
+    conversation_id = payload.conversation_id or "default"
+    user_id = user["email"]
+    # AIDEV-NOTE: user_id always comes from the signed session, never from a client-supplied payload.
     if is_medical_advice_request(payload.message):
+        response_text = blocked_response()
+        append_message(user_id, conversation_id, "user", payload.message)
+        append_message(user_id, conversation_id, "assistant", response_text)
+
         async def blocked_events() -> AsyncIterator[str]:
-            yield f"data: {json.dumps({'token': blocked_response()}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'token': response_text}, ensure_ascii=False)}\n\n"
             yield "event: done\ndata: {}\n\n"
 
         return StreamingResponse(blocked_events(), media_type="text/event-stream")
@@ -201,9 +228,23 @@ async def chat_stream(payload: ChatRequest):
 
     async def events() -> AsyncIterator[str]:
         async for chunk in stream_answer(
-            payload.message, papers, payload.conversation_id or "default"
+            payload.message,
+            papers,
+            conversation_id,
+            user_id,
         ):
             yield f"data: {json.dumps({'token': chunk}, ensure_ascii=False)}\n\n"
         yield "event: done\ndata: {}\n\n"
 
     return StreamingResponse(events(), media_type="text/event-stream")
+
+
+@app.get("/api/chat/history")
+async def chat_history(
+    conversation_id: str = "default",
+    user: dict[str, str] = Depends(require_user),
+):
+    return {
+        "conversation_id": conversation_id,
+        "messages": get_messages(user["email"], conversation_id, limit=200),
+    }
