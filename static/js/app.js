@@ -65,7 +65,7 @@ function renderPapers(papers) {
   state.papers = papers;
   byId("papers-summary").textContent = `${papers.length}건의 논문을 찾았습니다.`;
   if (!papers.length) { byId("papers-container").innerHTML = "<p class='result-summary'>조건에 맞는 논문이 없습니다.</p>"; return; }
-  byId("papers-container").innerHTML = `<table class="paper-table"><thead><tr><th>논문 / 초록</th><th>저널</th><th>연도</th><th>저자</th><th>PMID</th></tr></thead><tbody>${papers.map((paper) => `<tr><td class="paper-info"><strong class="paper-title">${escapeHtml(paper.title || "제목 없음")}</strong><details class="abstract-details"><summary>초록 보기</summary><p>${escapeHtml(paper.abstract || "등록된 초록이 없습니다.")}</p></details></td><td>${escapeHtml(paper.journal || "-")}</td><td>${paper.pub_year || "-"}</td><td class="paper-authors">${escapeHtml(paper.authors || "-")}</td><td><span class="pmid-chip">${escapeHtml(paper.pmid || "-")}</span></td></tr>`).join("")}</tbody></table>`;
+  byId("papers-container").innerHTML = `<div class="paper-list">${papers.map((paper) => `<article class="paper-card"><div class="paper-card-head"><div><h3>${escapeHtml(paper.title || "제목 없음")}</h3><div class="paper-meta"><span class="meta-chip journal-chip">${escapeHtml(paper.journal || "저널 정보 없음")}</span><span class="meta-chip">${paper.pub_year || "연도 정보 없음"}</span><span class="pmid-chip">PMID ${escapeHtml(paper.pmid || "-")}</span></div></div></div><p class="paper-author"><strong>저자</strong> ${escapeHtml(paper.authors || "등록된 저자 정보가 없습니다.")}</p><p class="abstract-preview">${escapeHtml(paper.abstract || "등록된 초록이 없습니다.")}</p><details class="abstract-details"><summary>초록 전체 보기</summary><p>${escapeHtml(paper.abstract || "등록된 초록이 없습니다.")}</p></details></article>`).join("")}</div>`;
 }
 
 async function loadPapers(params = new URLSearchParams()) {
