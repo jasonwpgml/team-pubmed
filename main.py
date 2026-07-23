@@ -62,6 +62,19 @@ async def index(request: Request):
     return templates.TemplateResponse(request, "index.html", {"user": user})
 
 
+@app.get("/landing/preview")
+async def landing_preview(request: Request):
+    """Read-only application shell embedded in the public landing page."""
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "user": {"name": "Publium 미리보기", "email": "preview@publium.local"},
+            "preview": True,
+        },
+    )
+
+
 def require_user(request: Request) -> dict[str, str]:
     user = request.session.get("user")
     if not user or not user.get("email"):

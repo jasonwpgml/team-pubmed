@@ -55,7 +55,9 @@
       </section>
     </main>
     <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite" aria-label="데이터를 불러오는 중입니다."><div class="loading-panel"><span class="loading-spinner" aria-hidden="true"></span><p>데이터를 불러오는 중입니다.</p></div></div>
+    {% if not preview %}
     <script src="/static/js/app.js"></script>
     <script src="/static/js/chat.js"></script>
+    {% endif %}
   </body>
 </html>
