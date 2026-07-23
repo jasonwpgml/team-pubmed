@@ -108,6 +108,7 @@ async def get_stats():
             "total_journals": db.count_journals(),
             "papers_by_year": analysis.papers_by_year(papers),
             "top_journals": analysis.top_journals(papers),
+            "latest_trend": db.get_collection_trend(),
         }
     except Exception as error:
         raise HTTPException(status_code=500, detail="통계를 불러오지 못했습니다.") from error
@@ -118,6 +119,7 @@ async def get_publication_trend(
     keyword: str,
     year_from: int = 1900,
     year_to: int = 2100,
+    persist: bool = False,
 ):
     """Return PubMed's full ESearch count for each year, not the 100-paper sample."""
     if not keyword.strip():
@@ -125,7 +127,7 @@ async def get_publication_trend(
     if year_from > year_to:
         raise HTTPException(status_code=400, detail="시작 연도는 종료 연도보다 클 수 없습니다.")
 
-    _analysis, _db, pubmed = _core_modules()
+    _analysis, db, pubmed = _core_modules()
     count_by_year = getattr(pubmed, "count_by_year", None)
     if count_by_year is None:
         raise HTTPException(
@@ -133,9 +135,12 @@ async def get_publication_trend(
             detail="연도별 전체 건수 모듈을 통합하는 중입니다.",
         )
     try:
+        papers_by_year = count_by_year(keyword.strip(), year_from, year_to)
+        if persist:
+            db.save_collection_trend(keyword.strip(), year_from, year_to, papers_by_year)
         return {
             "keyword": keyword.strip(),
-            "papers_by_year": count_by_year(keyword.strip(), year_from, year_to),
+            "papers_by_year": papers_by_year,
         }
     except Exception as error:
         raise HTTPException(status_code=502, detail="연도별 PubMed 건수를 불러오지 못했습니다.") from error

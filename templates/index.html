@@ -24,7 +24,7 @@
           </div>
           <label for="collect-max">최대 수집 건수</label>
           <select id="collect-max" name="max_count"><option value="25">25건</option><option value="50" selected>50건</option><option value="100">100건</option></select>
-          <button class="primary-button collect-action" type="submit"><span aria-hidden="true">🔎</span> 논문 수집하기</button>
+          <button class="primary-button collect-action" type="submit"><span aria-hidden="true">＋</span> 논문 수집하기</button>
           <button id="reset-data" class="reset-button collect-action" type="button"><span aria-hidden="true">↺</span> 수집 데이터 초기화</button>
           <p id="collect-status" class="form-status" role="status"></p>
         </form>
@@ -47,16 +47,17 @@
         </section>
 
         <section id="search" class="tab-panel">
-          <article class="clay-card table-card"><div class="card-heading"><div><p class="eyebrow">PAPER SEARCH</p><h2>논문 검색</h2></div><button id="download-csv" class="secondary-button">↓ CSV 다운로드</button></div><form id="filter-form" class="filter-bar"><input name="keyword" placeholder="제목 또는 초록 검색" /><input name="year_from" type="number" placeholder="시작 연도" /><input name="year_to" type="number" placeholder="종료 연도" /><input name="journal" placeholder="저널명" /><button class="primary-button" type="submit">검색</button></form><p id="search-summary" class="result-summary">키워드·연도·저널 조건으로 수집된 논문을 검색하세요.</p><div id="search-container" class="paper-table-wrap"></div></article>
+          <article class="clay-card table-card"><div class="card-heading"><div><p class="eyebrow">PAPER SEARCH</p><h2>논문 검색</h2></div><button id="download-csv" class="secondary-button">↓ CSV 다운로드</button></div><form id="filter-form" class="filter-bar"><input name="keyword" placeholder="제목 또는 초록 검색" /><input name="year_from" type="number" placeholder="시작 연도" /><input name="year_to" type="number" placeholder="종료 연도" /><input name="journal" placeholder="저널명" /><button class="primary-button" type="submit">검색</button></form><p id="search-summary" class="result-summary">키워드·연도·저널 조건으로 수집된 논문을 검색하세요.</p><div id="search-container" class="search-results-wrap"></div></article>
         </section>
 
         <section id="papers" class="tab-panel">
-          <article class="clay-card table-card metadata-card"><div class="card-heading"><div><p class="eyebrow">COLLECTED RECORDS</p><h2>논문 메타데이터</h2></div></div><div class="metadata-search"><label class="sr-only" for="metadata-query">수집 논문 내 검색</label><input id="metadata-query" type="search" placeholder="수집 논문 안에서 제목·초록·저널·저자 검색" autocomplete="off" /></div><p id="papers-summary" class="result-summary">저장된 논문 메타데이터를 불러오는 중입니다.</p><div id="papers-container"></div></article>
+          <article class="clay-card table-card metadata-card"><div class="card-heading"><div><p class="eyebrow">COLLECTED RECORDS</p><h2>논문 메타데이터</h2></div></div><form id="metadata-filter-form" class="filter-bar"><input name="keyword" placeholder="제목 또는 초록 검색" /><input name="year_from" type="number" placeholder="시작 연도" /><input name="year_to" type="number" placeholder="종료 연도" /><input name="journal" placeholder="저널명" /><button class="primary-button" type="submit">검색</button></form><p id="papers-summary" class="result-summary">저장된 논문 메타데이터를 불러오는 중입니다.</p><div id="papers-container"></div></article>
         </section>
 
         <section id="chat" class="tab-panel"><article class="chat-card clay-card"><div class="card-heading"><div><p class="eyebrow">PAPER-GROUNDED AI</p><h2>AI 논문 탐색 도우미</h2></div><span class="safe-badge">의료 조언 제외</span></div><div id="chat-log" class="chat-log"><div class="chat-message assistant intro-message"><span class="avatar">✦</span><div>궁금한 논문을 찾아볼까요?</div></div></div><form id="chat-form" class="chat-form"><input id="chat-input" placeholder="예: 당뇨병 관련 최신 연구 동향을 알려줘" required /><button class="primary-button" type="submit">보내기 <span>→</span></button></form><p class="chat-disclaimer">의료적 진단·처방·복용 방법은 제공하지 않습니다.</p></article></section>
       </section>
     </main>
+    <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite" aria-label="데이터를 불러오는 중입니다."><div class="loading-panel"><span class="loading-spinner" aria-hidden="true"></span><p>데이터를 불러오는 중입니다.</p></div></div>
     <script src="/static/js/app.js"></script>
     <script src="/static/js/chat.js"></script>
   </body>

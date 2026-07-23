@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -22,6 +23,17 @@ CREATE TABLE IF NOT EXISTS papers (
 )
 """
 
+_TREND_SCHEMA = """
+CREATE TABLE IF NOT EXISTS collection_trend (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    keyword TEXT NOT NULL,
+    year_from INTEGER NOT NULL,
+    year_to INTEGER NOT NULL,
+    papers_by_year TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
 
 @contextmanager
 def _connect() -> Iterator[sqlite3.Connection]:
@@ -39,6 +51,7 @@ def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with _connect() as connection:
         connection.execute(_SCHEMA)
+        connection.execute(_TREND_SCHEMA)
         _migrate_legacy_records(connection)
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_papers_year ON papers(pub_year)"
@@ -139,7 +152,51 @@ def clear_papers() -> int:
     init_db()
     with _connect() as connection:
         removed = connection.execute("DELETE FROM papers").rowcount
+        connection.execute("DELETE FROM collection_trend")
+        legacy_table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pubmed_records'"
+        ).fetchone()
+        if legacy_table is not None:
+            connection.execute("DELETE FROM pubmed_records")
     return int(removed)
+
+
+def save_collection_trend(
+    keyword: str, year_from: int, year_to: int, papers_by_year: dict[int, int]
+) -> None:
+    """Persist the latest PubMed annual-search trend for page refreshes."""
+    init_db()
+    with _connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO collection_trend (id, keyword, year_from, year_to, papers_by_year)
+            VALUES (1, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                keyword = excluded.keyword,
+                year_from = excluded.year_from,
+                year_to = excluded.year_to,
+                papers_by_year = excluded.papers_by_year,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (keyword, year_from, year_to, json.dumps(papers_by_year)),
+        )
+
+
+def get_collection_trend() -> dict | None:
+    """Return the latest persisted annual PubMed search trend, if available."""
+    init_db()
+    with _connect() as connection:
+        row = connection.execute(
+            "SELECT keyword, year_from, year_to, papers_by_year FROM collection_trend WHERE id = 1"
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "keyword": row["keyword"],
+        "year_from": row["year_from"],
+        "year_to": row["year_to"],
+        "papers_by_year": json.loads(row["papers_by_year"]),
+    }
 
 
 def _migrate_legacy_records(connection: sqlite3.Connection) -> None:

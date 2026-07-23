@@ -53,6 +53,43 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(db.count_papers(), 0)
         self.assertEqual(db.clear_papers(), 0)
 
+    def test_clear_papers_prevents_legacy_records_from_being_migrated_back(self):
+        with closing(sqlite3.connect(db.DB_PATH)) as connection:
+            with connection:
+                connection.execute(
+                    """
+                    CREATE TABLE pubmed_records (
+                        pmid TEXT PRIMARY KEY, title TEXT, abstract TEXT,
+                        journal TEXT, pub_year INTEGER, authors TEXT
+                    )
+                    """
+                )
+                connection.execute(
+                    "INSERT INTO pubmed_records VALUES (?, ?, ?, ?, ?, ?)",
+                    ("9", "Legacy paper", "Abstract", "Legacy Journal", 2022, "Jane Doe"),
+                )
+
+        self.assertEqual(db.count_papers(), 1)
+        self.assertEqual(db.clear_papers(), 1)
+        self.assertEqual(db.count_papers(), 0)
+
+    def test_collection_trend_persists_and_is_cleared_with_papers(self):
+        db.upsert_papers([self.paper("1", "COVID vaccine", "Journal A", 2023)])
+        db.save_collection_trend("covid", 2022, 2023, {2022: 11, 2023: 17})
+
+        self.assertEqual(
+            db.get_collection_trend(),
+            {
+                "keyword": "covid",
+                "year_from": 2022,
+                "year_to": 2023,
+                "papers_by_year": {"2022": 11, "2023": 17},
+            },
+        )
+
+        db.clear_papers()
+        self.assertIsNone(db.get_collection_trend())
+
     def test_init_db_uses_documented_schema(self):
         db.init_db()
         with closing(sqlite3.connect(db.DB_PATH)) as connection:

@@ -1,12 +1,25 @@
 const state = { papers: [], metadataPapers: [], searchPapers: [] };
+let pendingRequests = 0;
 
 const byId = (id) => document.getElementById(id);
 
+function setAppLoading(isLoading) {
+  pendingRequests = Math.max(0, pendingRequests + (isLoading ? 1 : -1));
+  byId("loading-indicator").classList.toggle("is-visible", pendingRequests > 0);
+}
+
+window.setAppLoading = setAppLoading;
+
 async function request(url, options = {}) {
-  const response = await fetch(url, options);
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(formatError(body.detail));
-  return body;
+  setAppLoading(true);
+  try {
+    const response = await fetch(url, options);
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(formatError(body.detail));
+    return body;
+  } finally {
+    setAppLoading(false);
+  }
 }
 
 function formatError(detail) {
@@ -28,7 +41,8 @@ function nonEmptyFormParams(form) {
 }
 
 function renderCharts(stats, trend = null) {
-  renderVerticalTrend(byId("year-chart"), Object.entries(trend?.papers_by_year || {}));
+  const storedTrend = trend || stats.latest_trend;
+  renderVerticalTrend(byId("year-chart"), Object.entries(storedTrend?.papers_by_year || {}));
   renderBarChart(byId("journal-chart"), stats.top_journals || [], "mint", "저장된 논문이 없으면 주요 저널이 표시되지 않습니다.");
 }
 
@@ -41,7 +55,7 @@ function renderVerticalTrend(container, entries) {
   const maxValue = Math.max(...entries.map(([, value]) => Number(value)));
   container.innerHTML = entries.map(([year, value]) => {
     const height = Math.max(5, Math.round((Number(value) / maxValue) * 100));
-    return `<div class="trend-column"><strong>${Number(value).toLocaleString()}</strong><div class="trend-track"><span style="height:${height}%"></span></div><small>${escapeHtml(year)}</small></div>`;
+    return `<div class="trend-column"><div class="trend-track" style="--bar-height:${height}%"><strong>${Number(value).toLocaleString()}</strong><span></span></div><small>${escapeHtml(year)}</small></div>`;
   }).join("");
 }
 
@@ -70,10 +84,11 @@ async function loadTrend(filters) {
   const note = byId("trend-note");
   note.textContent = "PubMed 전체 검색 건수를 집계하고 있어요…";
   try {
+    params.set("persist", "true");
     const trend = await request(`/api/trend?${params}`);
     const stats = await request("/api/stats");
     renderCharts(stats, trend);
-    note.textContent = `‘${trend.keyword}’의 연도별 전체 검색 결과입니다. 논문 목록은 최대 100건 표본으로 표시됩니다.`;
+    note.textContent = `‘${trend.keyword}’의 연도별 전체 검색 결과입니다.`;
   } catch (error) {
     note.textContent = error.message;
   }
@@ -93,7 +108,7 @@ function renderSearchResults(papers) {
     byId("search-container").innerHTML = "<p class='result-summary'>조건에 맞는 논문이 없습니다.</p>";
     return;
   }
-  byId("search-container").innerHTML = `<table class="paper-table search-table"><thead><tr><th>논문 제목</th><th>저널</th><th>연도</th><th>PMID</th></tr></thead><tbody>${papers.map((paper) => `<tr><td class="paper-title">${escapeHtml(paper.title || "제목 없음")}</td><td>${escapeHtml(paper.journal || "-")}</td><td>${paper.pub_year || "-"}</td><td><span class="pmid-chip">${escapeHtml(paper.pmid || "-")}</span></td></tr>`).join("")}</tbody></table>`;
+  byId("search-container").innerHTML = `<div class="paper-list">${papers.map((paper) => `<article class="paper-card"><div class="paper-card-head"><div><h3>${escapeHtml(paper.title || "제목 없음")}</h3><div class="paper-meta"><span class="meta-chip journal-chip">${escapeHtml(paper.journal || "저널 정보 없음")}</span><span class="meta-chip">${paper.pub_year || "연도 정보 없음"}</span><span class="pmid-chip">PMID ${escapeHtml(paper.pmid || "-")}</span></div></div></div><p class="paper-author"><strong>저자</strong> ${escapeHtml(paper.authors || "등록된 저자 정보가 없습니다.")}</p><p class="abstract-preview">${escapeHtml(paper.abstract || "등록된 초록이 없습니다.")}</p><details class="abstract-details"><summary>초록 전체 보기</summary><p>${escapeHtml(paper.abstract || "등록된 초록이 없습니다.")}</p></details></article>`).join("")}</div>`;
 }
 
 async function loadPapers() {
@@ -107,8 +122,19 @@ async function loadPapers() {
 }
 
 function applyMetadataFilter() {
-  const query = byId("metadata-query").value.trim().toLowerCase();
-  const papers = !query ? state.metadataPapers : state.metadataPapers.filter((paper) => [paper.title, paper.abstract, paper.journal, paper.authors].some((value) => String(value || "").toLowerCase().includes(query)));
+  const formData = new FormData(byId("metadata-filter-form"));
+  const keyword = String(formData.get("keyword") || "").trim().toLowerCase();
+  const journal = String(formData.get("journal") || "").trim().toLowerCase();
+  const yearFrom = Number(formData.get("year_from")) || null;
+  const yearTo = Number(formData.get("year_to")) || null;
+  const papers = state.metadataPapers.filter((paper) => {
+    const year = Number(paper.pub_year) || null;
+    const matchesKeyword = !keyword || [paper.title, paper.abstract].some((value) => String(value || "").toLowerCase().includes(keyword));
+    const matchesJournal = !journal || String(paper.journal || "").toLowerCase().includes(journal);
+    const matchesFrom = !yearFrom || (year && year >= yearFrom);
+    const matchesTo = !yearTo || (year && year <= yearTo);
+    return matchesKeyword && matchesJournal && matchesFrom && matchesTo;
+  });
   renderPapers(papers, state.metadataPapers.length);
 }
 
@@ -143,12 +169,17 @@ byId("reset-data").addEventListener("click", async () => {
     state.papers = [];
     state.metadataPapers = [];
     state.searchPapers = [];
+    byId("metadata-filter-form").reset();
+    renderPapers([], 0);
+    renderSearchResults([]);
+    renderCharts({ top_journals: [] });
+    byId("metric-papers").textContent = "0";
+    byId("metric-journals").textContent = "0";
     byId("metric-new").textContent = "—";
     byId("metric-skipped").textContent = "—";
+    byId("trend-note").textContent = "키워드를 수집하면 PubMed 전체 검색 건수로 추세를 표시합니다.";
     status.textContent = `${result.removed_count}건의 수집 데이터를 초기화했습니다.`;
     await loadStats();
-    if (byId("search").classList.contains("is-active")) renderSearchResults([]);
-    if (byId("papers").classList.contains("is-active")) await loadPapers();
   } catch (error) {
     status.textContent = error.message;
   } finally {
@@ -157,7 +188,7 @@ byId("reset-data").addEventListener("click", async () => {
 });
 
 byId("filter-form").addEventListener("submit", async (event) => { event.preventDefault(); searchPapers(nonEmptyFormParams(event.currentTarget)); });
-byId("metadata-query").addEventListener("input", applyMetadataFilter);
+byId("metadata-filter-form").addEventListener("submit", (event) => { event.preventDefault(); applyMetadataFilter(); });
 
 byId("download-csv").addEventListener("click", () => { if (!state.searchPapers.length) return; const rows = [["PMID", "Title", "Abstract", "Journal", "Year", "Authors"], ...state.searchPapers.map((paper) => [paper.pmid, paper.title, paper.abstract, paper.journal, paper.pub_year, paper.authors])]; const csv = "\uFEFF" + rows.map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); link.download = "pubmed-search-results.csv"; link.click(); URL.revokeObjectURL(link.href); });
 

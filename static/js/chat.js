@@ -23,8 +23,10 @@ chatForm.addEventListener("submit", async (event) => {
   chatInput.value = "";
   chatInput.disabled = true;
   const answer = addMessage("assistant");
+  let loadingVisible = true;
 
   try {
+    window.setAppLoading?.(true);
     const response = await fetch("/api/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -34,6 +36,8 @@ chatForm.addEventListener("submit", async (event) => {
       const error = await response.json();
       throw new Error(error.detail || "답변을 생성하지 못했습니다.");
     }
+    window.setAppLoading?.(false);
+    loadingVisible = false;
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -59,6 +63,7 @@ chatForm.addEventListener("submit", async (event) => {
   } catch (error) {
     answer.textContent = error.message;
   } finally {
+    if (loadingVisible) window.setAppLoading?.(false);
     chatInput.disabled = false;
     chatInput.focus();
   }
