@@ -11,11 +11,14 @@ from core import db
 class DatabaseTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
+        self.database_url_patch = patch.object(db, "DATABASE_URL", "")
+        self.database_url_patch.start()
         self.db_patch = patch.object(db, "DB_PATH", Path(self.temp_dir.name) / "test.db")
         self.db_patch.start()
 
     def tearDown(self):
         self.db_patch.stop()
+        self.database_url_patch.stop()
         self.temp_dir.cleanup()
 
     def test_upsert_skips_duplicate_pmids_and_counts_distinct_journals(self):

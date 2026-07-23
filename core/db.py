@@ -1,17 +1,19 @@
-"""SQLite persistence and querying for PubMed records."""
+"""SQLite/PostgreSQL persistence and querying for PubMed records."""
 
 from __future__ import annotations
 
 import json
 import os
 import sqlite3
-from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
+from core.database import adapt_query, connect, uses_postgres
+
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 DB_PATH = Path(os.getenv("PUBMED_DB_PATH", Path(__file__).resolve().parents[1] / "pubmed.db"))
 
-_SCHEMA = """
+_SQLITE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS papers (
     pmid TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -23,7 +25,19 @@ CREATE TABLE IF NOT EXISTS papers (
 )
 """
 
-_TREND_SCHEMA = """
+_POSTGRES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS papers (
+    pmid TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    abstract TEXT NOT NULL DEFAULT '',
+    journal TEXT NOT NULL DEFAULT '',
+    pub_year INTEGER,
+    authors TEXT NOT NULL DEFAULT '',
+    collected_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
+_SQLITE_TREND_SCHEMA = """
 CREATE TABLE IF NOT EXISTS collection_trend (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     keyword TEXT NOT NULL,
@@ -34,7 +48,18 @@ CREATE TABLE IF NOT EXISTS collection_trend (
 )
 """
 
-_COLLECTION_KEYWORD_SCHEMA = """
+_POSTGRES_TREND_SCHEMA = """
+CREATE TABLE IF NOT EXISTS collection_trend (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    keyword TEXT NOT NULL,
+    year_from INTEGER NOT NULL,
+    year_to INTEGER NOT NULL,
+    papers_by_year TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
+_SQLITE_COLLECTION_KEYWORD_SCHEMA = """
 CREATE TABLE IF NOT EXISTS paper_collection_keywords (
     pmid TEXT NOT NULL,
     keyword TEXT NOT NULL COLLATE NOCASE,
@@ -43,27 +68,42 @@ CREATE TABLE IF NOT EXISTS paper_collection_keywords (
 )
 """
 
+_POSTGRES_COLLECTION_KEYWORD_SCHEMA = """
+CREATE TABLE IF NOT EXISTS paper_collection_keywords (
+    pmid TEXT NOT NULL,
+    keyword TEXT NOT NULL,
+    PRIMARY KEY (pmid, keyword),
+    FOREIGN KEY (pmid) REFERENCES papers(pmid) ON DELETE CASCADE
+)
+"""
 
-@contextmanager
-def _connect() -> Iterator[sqlite3.Connection]:
-    connection = sqlite3.connect(DB_PATH)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    try:
-        with connection:
-            yield connection
-    finally:
-        connection.close()
+
+def _connect():
+    return connect(DATABASE_URL, DB_PATH)
+
+
+def _query(query: str) -> str:
+    return adapt_query(query, DATABASE_URL)
 
 
 def init_db() -> None:
     """Create the PubMed table and search indexes if they do not exist."""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with _connect() as connection:
-        connection.execute(_SCHEMA)
-        connection.execute(_TREND_SCHEMA)
-        connection.execute(_COLLECTION_KEYWORD_SCHEMA)
-        _migrate_legacy_records(connection)
+        connection.execute(
+            _POSTGRES_SCHEMA if uses_postgres(DATABASE_URL) else _SQLITE_SCHEMA
+        )
+        connection.execute(
+            _POSTGRES_TREND_SCHEMA
+            if uses_postgres(DATABASE_URL)
+            else _SQLITE_TREND_SCHEMA
+        )
+        connection.execute(
+            _POSTGRES_COLLECTION_KEYWORD_SCHEMA
+            if uses_postgres(DATABASE_URL)
+            else _SQLITE_COLLECTION_KEYWORD_SCHEMA
+        )
+        if not uses_postgres(DATABASE_URL):
+            _migrate_legacy_records(connection)
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_papers_year ON papers(pub_year)"
         )
@@ -87,11 +127,14 @@ def upsert_papers(
         for paper in papers:
             normalized = _normalize_paper(paper)
             cursor = connection.execute(
-                """
-                INSERT OR IGNORE INTO papers
+                _query(
+                    """
+                INSERT INTO papers
                     (pmid, title, abstract, journal, pub_year, authors)
                 VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (pmid) DO NOTHING
                 """,
+                ),
                 (
                     normalized["pmid"],
                     normalized["title"],
@@ -105,10 +148,13 @@ def upsert_papers(
             if collection_keyword:
                 # AIDEV-NOTE: Keep every PMID-to-query association; one paper may be collected by multiple searches.
                 connection.execute(
-                    """
-                    INSERT OR IGNORE INTO paper_collection_keywords (pmid, keyword)
+                    _query(
+                        """
+                    INSERT INTO paper_collection_keywords (pmid, keyword)
                     VALUES (?, ?)
+                    ON CONFLICT (pmid, keyword) DO NOTHING
                     """,
+                    ),
                     (normalized["pmid"], collection_keyword),
                 )
     return inserted, len(papers) - inserted
@@ -134,14 +180,16 @@ def search_papers(
     journal = journal.strip()
 
     if keyword:
+        insensitive_like = "ILIKE" if uses_postgres(DATABASE_URL) else "LIKE"
+        no_case = "" if uses_postgres(DATABASE_URL) else " COLLATE NOCASE"
         conditions.append(
             "("
-            "title LIKE ? COLLATE NOCASE OR "
-            "abstract LIKE ? COLLATE NOCASE OR "
+            f"title {insensitive_like} ?{no_case} OR "
+            f"abstract {insensitive_like} ?{no_case} OR "
             "EXISTS ("
             "SELECT 1 FROM paper_collection_keywords AS collected "
             "WHERE collected.pmid = papers.pmid "
-            "AND collected.keyword LIKE ? COLLATE NOCASE"
+            f"AND collected.keyword {insensitive_like} ?{no_case}"
             ")"
             ")"
         )
@@ -154,7 +202,10 @@ def search_papers(
         conditions.append("pub_year <= ?")
         params.append(year_to)
     if journal:
-        conditions.append("journal = ? COLLATE NOCASE")
+        if uses_postgres(DATABASE_URL):
+            conditions.append("journal ILIKE ?")
+        else:
+            conditions.append("journal = ? COLLATE NOCASE")
         params.append(journal)
 
     where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
@@ -162,16 +213,20 @@ def search_papers(
     query = (
         "SELECT pmid, title, abstract, journal, pub_year, authors "
         f"FROM papers{where} "
-        "ORDER BY pub_year DESC, CAST(pmid AS INTEGER) DESC LIMIT ?"
+        "ORDER BY pub_year DESC, CAST(pmid AS BIGINT) DESC LIMIT ?"
     )
     with _connect() as connection:
-        return [dict(row) for row in connection.execute(query, params).fetchall()]
+        return [
+            dict(row)
+            for row in connection.execute(_query(query), params).fetchall()
+        ]
 
 
 def count_papers() -> int:
     init_db()
     with _connect() as connection:
-        return int(connection.execute("SELECT COUNT(*) FROM papers").fetchone()[0])
+        row = connection.execute("SELECT COUNT(*) AS count FROM papers").fetchone()
+        return int(row["count"])
 
 
 def count_journals() -> int:
@@ -179,8 +234,9 @@ def count_journals() -> int:
     with _connect() as connection:
         return int(
             connection.execute(
-                "SELECT COUNT(DISTINCT journal) FROM papers WHERE journal <> ''"
-            ).fetchone()[0]
+                "SELECT COUNT(DISTINCT journal) AS count "
+                "FROM papers WHERE journal <> ''"
+            ).fetchone()["count"]
         )
 
 
@@ -191,11 +247,13 @@ def clear_papers() -> int:
         connection.execute("DELETE FROM paper_collection_keywords")
         removed = connection.execute("DELETE FROM papers").rowcount
         connection.execute("DELETE FROM collection_trend")
-        legacy_table = connection.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pubmed_records'"
-        ).fetchone()
-        if legacy_table is not None:
-            connection.execute("DELETE FROM pubmed_records")
+        if not uses_postgres(DATABASE_URL):
+            legacy_table = connection.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type = 'table' AND name = 'pubmed_records'"
+            ).fetchone()
+            if legacy_table is not None:
+                connection.execute("DELETE FROM pubmed_records")
     return int(removed)
 
 
@@ -206,7 +264,8 @@ def save_collection_trend(
     init_db()
     with _connect() as connection:
         connection.execute(
-            """
+            _query(
+                """
             INSERT INTO collection_trend (id, keyword, year_from, year_to, papers_by_year)
             VALUES (1, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
@@ -216,6 +275,7 @@ def save_collection_trend(
                 papers_by_year = excluded.papers_by_year,
                 updated_at = CURRENT_TIMESTAMP
             """,
+            ),
             (keyword, year_from, year_to, json.dumps(papers_by_year)),
         )
 

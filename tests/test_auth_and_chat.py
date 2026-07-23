@@ -111,7 +111,10 @@ class PersistentChatIntegrationTests(unittest.TestCase):
     def test_chat_history_survives_a_new_client_and_is_user_scoped(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             test_db = Path(temp_dir) / "chat.db"
-            with patch.object(chat_store, "DB_PATH", test_db):
+            with (
+                patch.object(chat_store, "DATABASE_URL", ""),
+                patch.object(chat_store, "DB_PATH", test_db),
+            ):
                 with TestClient(app) as first_client:
                     first_client.cookies.set("session", _session_cookie())
                     response = first_client.post(

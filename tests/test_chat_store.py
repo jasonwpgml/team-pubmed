@@ -11,6 +11,8 @@ from services import chat_store
 class ChatStoreTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
+        self.database_url_patch = patch.object(chat_store, "DATABASE_URL", "")
+        self.database_url_patch.start()
         self.db_patch = patch.object(
             chat_store,
             "DB_PATH",
@@ -20,6 +22,7 @@ class ChatStoreTests(unittest.TestCase):
 
     def tearDown(self):
         self.db_patch.stop()
+        self.database_url_patch.stop()
         self.temp_dir.cleanup()
 
     def test_messages_persist_in_sqlite_and_remain_user_scoped(self):
